@@ -1,45 +1,51 @@
-import { declareIndexPlugin, type ReactRNPlugin, WidgetLocation } from '@remnote/plugin-sdk';
-import '../style.css';
-import '../index.css'; // import <widget-name>.css
+import { declareIndexPlugin, ReactRNPlugin } from '@remnote/plugin-sdk';
 
 async function onActivate(plugin: ReactRNPlugin) {
-  // Register settings
-  await plugin.settings.registerStringSetting({
-    id: 'name',
-    title: 'What is your Name?',
-    defaultValue: 'Bob',
-  });
-
-  await plugin.settings.registerBooleanSetting({
-    id: 'pizza',
-    title: 'Do you like pizza?',
-    defaultValue: true,
-  });
-
-  await plugin.settings.registerNumberSetting({
-    id: 'favorite-number',
-    title: 'What is your favorite number?',
-    defaultValue: 42,
-  });
-
-  // A command that inserts text into the editor if focused.
   await plugin.app.registerCommand({
-    id: 'editor-command',
-    name: 'Editor Command',
+    id: 'convert-to-file-link',
+    name: 'Convert to File Link',
     action: async () => {
-      plugin.editor.insertPlainText('Hello World!');
+      const focusedRem = await plugin.focus.getFocusedRem();
+      
+      if (!focusedRem) {
+        await plugin.app.toast('No rem is currently focused');
+        return;
+      }
+      
+      const remText = focusedRem.text;
+      
+      if (!remText || remText.length === 0) {
+        await plugin.app.toast('The focused rem has no text');
+        return;
+      }
+      
+      const textString = await plugin.richText.toString(remText);
+      
+      if (!textString || textString.trim().length === 0) {
+        await plugin.app.toast('The focused rem has no text content');
+        return;
+      }
+      
+      // Strip all whitespace from the text
+      const trimmedText = textString.replace(/\s+/g, '');
+      const fileUrl = 'file://' + trimmedText;
+      
+      // Create the link using the exact structure RemNote uses
+      const linkElement = {
+        i: 'm',
+        text: trimmedText,
+        iUrl: fileUrl
+      };
+      
+      await focusedRem.setText([linkElement]);
+      
+      await plugin.app.toast('Converted to file:// link successfully');
     },
-  });
-
-  // Show a toast notification to the user.
-  await plugin.app.toast("I'm a toast!");
-
-  // Register a sidebar widget.
-  await plugin.app.registerWidget('sample_widget', WidgetLocation.RightSidebar, {
-    dimensions: { height: 'auto', width: '100%' },
   });
 }
 
-async function onDeactivate(_: ReactRNPlugin) {}
+async function onDeactivate(_plugin: ReactRNPlugin) {
+  // Clean up if needed
+}
 
 declareIndexPlugin(onActivate, onDeactivate);
