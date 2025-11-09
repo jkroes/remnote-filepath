@@ -3,7 +3,7 @@
   "id": "plugin_template",
   "name": "Plugin Template",
   "author": "remnote",
-  "repoUrl": "",
+  "repoUrl": "https://github.com/jkroes/remnote-filepath",
   "version": {
     "major": 0,
     "minor": 0,
