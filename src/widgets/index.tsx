@@ -353,6 +353,7 @@ async function onActivate(plugin: ReactRNPlugin) {
         currentParent = child;
       }
       
+      await focusedRem.remove();
       await plugin.app.toast('Created path hierarchy under Filepaths');
     },
   });
