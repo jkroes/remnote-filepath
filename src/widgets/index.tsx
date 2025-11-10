@@ -216,67 +216,6 @@ async function createChildPathRem(
 
 async function onActivate(plugin: ReactRNPlugin) {
   await plugin.app.registerCommand({
-    id: 'convert-to-file-link',
-    name: 'Convert to File Link',
-    action: async () => {
-      const focusedRem = await plugin.focus.getFocusedRem();
-      
-      if (!focusedRem) {
-        await plugin.app.toast('No rem is currently focused');
-        return;
-      }
-      
-      const remText = focusedRem.text;
-      
-      if (!remText || remText.length === 0) {
-        await plugin.app.toast('The focused rem has no text');
-        return;
-      }
-      
-      const textString = await plugin.richText.toString(remText);
-      
-      if (!textString || textString.trim().length === 0) {
-        await plugin.app.toast('The focused rem has no text content');
-        return;
-      }
-      
-      const pathTag = await ensurePathTag(plugin);
-      if (!pathTag) {
-        await plugin.app.toast('Unable to create or fetch the path tag');
-        return;
-      }
-      
-      const trimmedText = textString.trim();
-      if (trimmedText.length === 0) {
-        await plugin.app.toast('The focused rem has no text content');
-        return;
-      }
-      
-      if (!(await hasPathTag(focusedRem, pathTag._id))) {
-        await focusedRem.addTag(pathTag);
-      }
-      
-      let segments = await collectTaggedSegments(
-        focusedRem,
-        pathTag._id,
-        plugin
-      );
-      if (segments.length === 0 || segments[segments.length - 1] !== trimmedText) {
-        segments = [...segments, trimmedText];
-      }
-      
-      await ensureRemTaggedAndLinked(
-        focusedRem,
-        trimmedText,
-        segments,
-        pathTag
-      );
-      
-      await plugin.app.toast('Converted to file:// link successfully');
-    },
-  });
-
-  await plugin.app.registerCommand({
     id: 'path-to-hierarchy',
     name: 'Create Path Hierarchy',
     action: async () => {
