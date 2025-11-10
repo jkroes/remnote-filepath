@@ -1,7 +1,9 @@
 import { declareIndexPlugin, ReactRNPlugin } from '@remnote/plugin-sdk';
 
-const PATH_TAG_NAME = 'path';
-const FILEPATH_ROOT_NAME = 'Filepaths';
+const DEFAULT_PATH_TAG_NAME = 'path';
+const DEFAULT_FILEPATH_ROOT_NAME = 'Filepaths';
+const PATH_TAG_SETTING_ID = 'path-tag-name';
+const FILEPATH_ROOT_SETTING_ID = 'filepath-root-name';
 const WINDOWS_DRIVE_SEGMENT_REGEX = /^[a-zA-Z]:$/;
 const WINDOWS_DRIVE_PREFIX_REGEX = /^\/?([a-zA-Z]:)(?:\/|$)/;
 const FILE_PROTOCOL_REGEX = /^file:\/\//i;
@@ -14,8 +16,25 @@ const makePlainRichText = (text: string) => [
   },
 ];
 
-async function ensurePathTag(plugin: ReactRNPlugin) {
-  const nameRichText = makePlainRichText(PATH_TAG_NAME);
+const getConfiguredString = async (
+  plugin: ReactRNPlugin,
+  settingId: string,
+  fallback: string
+) => {
+  const value = await plugin.settings.getSetting<string>(settingId);
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim()
+    : fallback;
+};
+
+const getPathTagName = (plugin: ReactRNPlugin) =>
+  getConfiguredString(plugin, PATH_TAG_SETTING_ID, DEFAULT_PATH_TAG_NAME);
+
+const getFilepathsRootName = (plugin: ReactRNPlugin) =>
+  getConfiguredString(plugin, FILEPATH_ROOT_SETTING_ID, DEFAULT_FILEPATH_ROOT_NAME);
+
+async function ensurePathTag(plugin: ReactRNPlugin, tagName: string) {
+  const nameRichText = makePlainRichText(tagName);
   const existing = await plugin.rem.findByName(nameRichText, null);
   
   if (existing) {
@@ -31,8 +50,8 @@ async function ensurePathTag(plugin: ReactRNPlugin) {
   return newTag;
 }
 
-async function ensureFilepathsRoot(plugin: ReactRNPlugin) {
-  const nameRichText = makePlainRichText(FILEPATH_ROOT_NAME);
+async function ensureFilepathsRoot(plugin: ReactRNPlugin, rootName: string) {
+  const nameRichText = makePlainRichText(rootName);
   const existing = await plugin.rem.findByName(nameRichText, null);
   
   if (existing) {
@@ -215,6 +234,20 @@ async function createChildPathRem(
 }
 
 async function onActivate(plugin: ReactRNPlugin) {
+  await plugin.settings.registerStringSetting({
+    id: PATH_TAG_SETTING_ID,
+    title: 'Path Tag Name',
+    defaultValue: DEFAULT_PATH_TAG_NAME,
+    description: 'Tag applied to every Rem that is part of a file path hierarchy.',
+  });
+
+  await plugin.settings.registerStringSetting({
+    id: FILEPATH_ROOT_SETTING_ID,
+    title: 'Filepaths Root Name',
+    defaultValue: DEFAULT_FILEPATH_ROOT_NAME,
+    description: 'Name of the top-level Rem that stores all generated file path hierarchies.',
+  });
+
   await plugin.app.registerCommand({
     id: 'path-to-hierarchy',
     name: 'Create Path Hierarchy',
@@ -248,15 +281,17 @@ async function onActivate(plugin: ReactRNPlugin) {
         return;
       }
       
-      const pathTag = await ensurePathTag(plugin);
+      const pathTagName = await getPathTagName(plugin);
+      const pathTag = await ensurePathTag(plugin, pathTagName);
       if (!pathTag) {
-        await plugin.app.toast('Unable to create or fetch the path tag');
+        await plugin.app.toast(`Unable to create or fetch the "${pathTagName}" tag`);
         return;
       }
       
-      const root = await ensureFilepathsRoot(plugin);
+      const rootName = await getFilepathsRootName(plugin);
+      const root = await ensureFilepathsRoot(plugin, rootName);
       if (!root) {
-        await plugin.app.toast('Unable to create or fetch the Filepaths root');
+        await plugin.app.toast(`Unable to create or fetch the "${rootName}" root`);
         return;
       }
       
@@ -293,7 +328,7 @@ async function onActivate(plugin: ReactRNPlugin) {
       }
       
       await focusedRem.remove();
-      await plugin.app.toast('Created path hierarchy under Filepaths');
+      await plugin.app.toast(`Created path hierarchy under "${rootName}"`);
     },
   });
 }
