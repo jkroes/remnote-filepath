@@ -14,7 +14,7 @@
   "requestNative": false,
   "requiredScopes": [
     {
-      "type": "FocusedSubtree",
+      "type": "All",
       "level": "ReadCreateModify"
     }
   ]
