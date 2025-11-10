@@ -1,6 +1,6 @@
 {
-  "id": "file-link-converter",
-  "name": "File Link Converter",
+  "id": "remnote-filepath",
+  "name": "RemNote Filepath",
   "author": "Your Name",
   "description": "Converts node text into a clickable link with file:// prefix",
   "version": {
@@ -9,7 +9,7 @@
     "patch": 0
   },
   "manifestVersion": 1,
-  "repoUrl": "https://github.com/yourusername/remnote-filepath",
+  "repoUrl": "https://github.com/jkroes/remnote-filepath",
   "enableOnMobile": false,
   "requestNative": false,
   "requiredScopes": [
