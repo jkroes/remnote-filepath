@@ -26,8 +26,8 @@ async function onActivate(plugin: ReactRNPlugin) {
         return;
       }
       
-      // Strip all whitespace from the text
-      const trimmedText = textString.replace(/\s+/g, '');
+      // Trim leading/trailing whitespace but preserve interior spacing
+      const trimmedText = textString.trim();
       const fileUrl = 'file://' + trimmedText;
       
       // Create the link using the exact structure RemNote uses
