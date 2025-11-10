@@ -1,7 +1,11 @@
 import { declareIndexPlugin, ReactRNPlugin } from '@remnote/plugin-sdk';
 
 const PATH_TAG_NAME = 'path';
-const WINDOWS_DRIVE_REGEX = /^[a-zA-Z]:$/;
+const FILEPATH_ROOT_NAME = 'Filepaths';
+const WINDOWS_DRIVE_SEGMENT_REGEX = /^[a-zA-Z]:$/;
+const WINDOWS_DRIVE_PREFIX_REGEX = /^\/?([a-zA-Z]:)(?:\/|$)/;
+const FILE_PROTOCOL_REGEX = /^file:\/\//i;
+const BACKSLASH_REGEX = /\\/g;
 
 const makePlainRichText = (text: string) => [
   {
@@ -24,8 +28,29 @@ async function ensurePathTag(plugin: ReactRNPlugin) {
   }
   
   await newTag.setText(nameRichText);
-  await newTag.setParent(null);
   return newTag;
+}
+
+async function ensureFilepathsRoot(plugin: ReactRNPlugin) {
+  const nameRichText = makePlainRichText(FILEPATH_ROOT_NAME);
+  const existing = await plugin.rem.findByName(nameRichText, null);
+  
+  if (existing) {
+    return existing;
+  }
+  
+  const newRoot = await plugin.rem.createRem();
+  if (!newRoot) {
+    return undefined;
+  }
+  
+  await newRoot.setText(nameRichText);
+  try {
+    await newRoot.setParent(null);
+  } catch (_err) {
+    // Scope may prevent moving to top level; leave wherever it was created.
+  }
+  return newRoot;
 }
 
 async function hasPathTag(rem: any, pathTagId: string) {
@@ -56,25 +81,138 @@ async function collectTaggedSegments(
   return segments;
 }
 
-const buildFileUrlFromSegments = (segments: string[]) => {
+const buildFileUrlFromSegments = (segments: string[], absolute = true) => {
   if (segments.length === 0) {
     return undefined;
   }
 
   const [first, ...rest] = segments;
 
-  if (WINDOWS_DRIVE_REGEX.test(first)) {
+  if (WINDOWS_DRIVE_SEGMENT_REGEX.test(first)) {
     const remainder = rest.join('/');
     const drivePath = remainder.length > 0 ? `${first}/${remainder}` : `${first}/`;
     return `file:///${drivePath}`;
   }
 
-  const unixSegments = first === '/' ? rest : segments;
-  const pathBody = unixSegments.join('/');
-  const absolutePath = pathBody.length > 0 ? `/${pathBody}` : '/';
+  const joined = segments.join('/');
+  if (joined.length === 0) {
+    return absolute ? 'file:///' : 'file://';
+  }
 
-  return `file://${absolutePath}`;
+  const prefix = absolute ? '/' : '';
+  return `file://${prefix}${joined}`;
 };
+
+const buildLinkRichText = (text: string, url: string) => [
+  {
+    i: 'm' as const,
+    text,
+    iUrl: url,
+  },
+];
+
+const parsePathSegments = (rawPath: string) => {
+  let path = rawPath.trim();
+
+  if (path.length === 0) {
+    return { segments: [], absolute: false };
+  }
+
+  if (FILE_PROTOCOL_REGEX.test(path)) {
+    path = path.replace(FILE_PROTOCOL_REGEX, '');
+  }
+
+  path = path.replace(BACKSLASH_REGEX, '/');
+
+  let absolute = false;
+  let drive: string | undefined;
+
+  const driveMatch = path.match(WINDOWS_DRIVE_PREFIX_REGEX);
+  if (driveMatch) {
+    drive = driveMatch[1];
+    absolute = true;
+    path = path.slice(driveMatch[0].length);
+  } else if (path.startsWith('/')) {
+    absolute = true;
+    path = path.replace(/^\/+/, '');
+  }
+
+  const parts = path
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  const segments = drive ? [drive, ...parts] : parts;
+
+  return { segments, absolute };
+};
+
+async function ensureRemTaggedAndLinked(
+  rem: any,
+  displayText: string,
+  segments: string[],
+  pathTag: any,
+  absolute = true
+) {
+  const trimmed = displayText.trim();
+  if (trimmed.length === 0 || segments.length === 0) {
+    return;
+  }
+
+  if (!(await hasPathTag(rem, pathTag._id))) {
+    await rem.addTag(pathTag);
+  }
+
+  const fileUrl =
+    buildFileUrlFromSegments(segments, absolute) ?? `file://${trimmed}`;
+
+  await rem.setText(buildLinkRichText(trimmed, fileUrl));
+}
+
+async function findChildPathRem(
+  parent: any,
+  segment: string,
+  pathTagId: string,
+  plugin: ReactRNPlugin
+) {
+  if (!parent || !parent.getChildrenRem) {
+    return undefined;
+  }
+
+  const children = await parent.getChildrenRem();
+  let fallback: any | undefined;
+  for (const child of children ?? []) {
+    const childText = (await plugin.richText.toString(child.text)).trim();
+    if (childText !== segment) {
+      continue;
+    }
+    if (await hasPathTag(child, pathTagId)) {
+      return child;
+    }
+    fallback = fallback ?? child;
+  }
+
+  return fallback;
+}
+
+async function createChildPathRem(
+  parent: any,
+  segment: string,
+  plugin: ReactRNPlugin
+) {
+  const newRem = await plugin.rem.createRem();
+  if (!newRem) {
+    return undefined;
+  }
+
+  try {
+    await newRem.setParent(parent);
+  } catch (_err) {
+    // If we can't move it, leave it in the default location.
+  }
+  await newRem.setText(makePlainRichText(segment));
+  return newRem;
+}
 
 async function onActivate(plugin: ReactRNPlugin) {
   await plugin.app.registerCommand({
@@ -108,25 +246,114 @@ async function onActivate(plugin: ReactRNPlugin) {
         return;
       }
       
-      await focusedRem.addTag(pathTag);
-
-      const segments = await collectTaggedSegments(focusedRem, pathTag._id, plugin);
-      
-      // Trim leading/trailing whitespace but preserve interior spacing
       const trimmedText = textString.trim();
-      const fileUrl =
-        buildFileUrlFromSegments(segments) ?? 'file://' + trimmedText;
+      if (trimmedText.length === 0) {
+        await plugin.app.toast('The focused rem has no text content');
+        return;
+      }
       
-      // Create the link using the exact structure RemNote uses
-      const linkElement = {
-        i: 'm',
-        text: trimmedText,
-        iUrl: fileUrl
-      };
+      if (!(await hasPathTag(focusedRem, pathTag._id))) {
+        await focusedRem.addTag(pathTag);
+      }
       
-      await focusedRem.setText([linkElement]);
+      let segments = await collectTaggedSegments(
+        focusedRem,
+        pathTag._id,
+        plugin
+      );
+      if (segments.length === 0 || segments[segments.length - 1] !== trimmedText) {
+        segments = [...segments, trimmedText];
+      }
+      
+      await ensureRemTaggedAndLinked(
+        focusedRem,
+        trimmedText,
+        segments,
+        pathTag
+      );
       
       await plugin.app.toast('Converted to file:// link successfully');
+    },
+  });
+
+  await plugin.app.registerCommand({
+    id: 'path-to-hierarchy',
+    name: 'Create Path Hierarchy',
+    action: async () => {
+      const focusedRem = await plugin.focus.getFocusedRem();
+      
+      if (!focusedRem) {
+        await plugin.app.toast('No rem is currently focused');
+        return;
+      }
+      
+      const remText = focusedRem.text;
+      
+      if (!remText || remText.length === 0) {
+        await plugin.app.toast('The focused rem has no text');
+        return;
+      }
+      
+      const textString = await plugin.richText.toString(remText);
+      const trimmedPath = textString.trim();
+      
+      if (trimmedPath.length === 0) {
+        await plugin.app.toast('The focused rem has no text content');
+        return;
+      }
+      
+      const { segments, absolute } = parsePathSegments(trimmedPath);
+      
+      if (segments.length === 0) {
+        await plugin.app.toast('Provide a valid file path to expand');
+        return;
+      }
+      
+      const pathTag = await ensurePathTag(plugin);
+      if (!pathTag) {
+        await plugin.app.toast('Unable to create or fetch the path tag');
+        return;
+      }
+      
+      const root = await ensureFilepathsRoot(plugin);
+      if (!root) {
+        await plugin.app.toast('Unable to create or fetch the Filepaths root');
+        return;
+      }
+      
+      let currentParent: any = root;
+      const accumulatedSegments: string[] = [];
+      
+      for (const rawSegment of segments) {
+        const segment = rawSegment.trim();
+        if (segment.length === 0) {
+          continue;
+        }
+        
+        accumulatedSegments.push(segment);
+        
+        let child =
+          await findChildPathRem(currentParent, segment, pathTag._id, plugin);
+        
+        if (!child) {
+          child = await createChildPathRem(currentParent, segment, plugin);
+          if (!child) {
+            await plugin.app.toast('Unable to create a rem for part of the path');
+            return;
+          }
+        }
+        
+        await ensureRemTaggedAndLinked(
+          child,
+          segment,
+          [...accumulatedSegments],
+          pathTag,
+          absolute
+        );
+        currentParent = child;
+      }
+      
+      await plugin.app.toast('Created path hierarchy under Filepaths');
     },
   });
 }
