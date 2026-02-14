@@ -2,10 +2,10 @@
   "id": "remnote-filepath",
   "name": "RemNote Filepath",
   "author": "Justin Kroes",
-  "description": "Converts a filepath into a clickable link with file:// prefix",
+  "description": "Manage your filepaths in RemNote",
   "version": {
-    "major": 1,
-    "minor": 0,
+    "major": 0,
+    "minor": 2,
     "patch": 0
   },
   "manifestVersion": 1,
