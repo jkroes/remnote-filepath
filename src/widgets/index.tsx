@@ -7,6 +7,8 @@ import {
   getFilepathsRootName,
   isPathRem,
   getPathFromRem,
+  buildPathIndex,
+  getPathPrefixes,
 } from './utils';
 
 async function onActivate(plugin: ReactRNPlugin) {
@@ -40,6 +42,10 @@ async function onActivate(plugin: ReactRNPlugin) {
 
   await plugin.app.registerWidget('bulk_path_creator', WidgetLocation.Popup, {
     dimensions: { height: 'auto', width: '500px' },
+  });
+
+  await plugin.app.registerWidget('delete_confirm', WidgetLocation.Popup, {
+    dimensions: { height: 'auto', width: '450px' },
   });
 
   // Register per-device link-creation toggles for existing devices
@@ -142,6 +148,61 @@ async function onActivate(plugin: ReactRNPlugin) {
         return;
       }
       await plugin.widget.openPopup('bulk_path_creator');
+    },
+  });
+
+  await plugin.app.registerCommand({
+    id: 'delete-path',
+    name: 'Filepath: Delete Path',
+    action: async () => {
+      const paneId = await plugin.window.getFocusedPaneId();
+      const docRemId = await plugin.window.getOpenPaneRemId(paneId);
+      if (!docRemId) {
+        await plugin.app.toast('No document is open in the focused pane');
+        return;
+      }
+
+      const docRem = await plugin.rem.findOne(docRemId);
+      if (!docRem || !(await isPathRem(docRem, plugin))) {
+        await plugin.app.toast('Current document is not a path Rem');
+        return;
+      }
+
+      const myPath = getPathFromRem(docRem);
+      const deviceRem = await docRem.getParentRem();
+      if (!deviceRem) {
+        await plugin.app.toast('Could not find device Rem');
+        return;
+      }
+
+      const index = await buildPathIndex(deviceRem);
+
+      // Find all descendants (paths starting with myPath + "/")
+      const descendants: Array<{ id: string; path: string }> = [];
+      for (const [path, rem] of index) {
+        if (path.startsWith(myPath + '/')) {
+          descendants.push({ id: rem._id, path });
+        }
+      }
+
+      // Sort deepest-first for safe deletion order
+      descendants.sort((a, b) => b.path.length - a.path.length);
+
+      // All Rem IDs to delete: descendants (deepest-first) then self
+      const remIds = [...descendants.map(d => d.id), docRemId];
+
+      // Find parent path Rem for post-delete navigation
+      const prefixes = getPathPrefixes(myPath);
+      const parentPath = prefixes.length >= 2 ? prefixes[prefixes.length - 2] : null;
+      const parentRemId = parentPath ? (index.get(parentPath)?._id ?? null) : null;
+
+      await plugin.widget.openPopup('delete_confirm', {
+        path: myPath,
+        descendantCount: descendants.length,
+        remIds,
+        parentRemId,
+        deviceRemId: deviceRem._id,
+      });
     },
   });
 }
