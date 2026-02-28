@@ -4,8 +4,8 @@
   "author": "Justin Kroes",
   "description": "Manage your filepaths in RemNote",
   "version": {
-    "major": 0,
-    "minor": 2,
+    "major": 2,
+    "minor": 0,
     "patch": 0
   },
   "manifestVersion": 1,
