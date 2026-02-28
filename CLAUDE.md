@@ -104,6 +104,22 @@ Filepaths (root)
    - Uses `useTracker` with `[documentId]` dep for reactive data fetching
    - Returns null for non-path Rems only
 
+6. **Performance indexing (per-operation Map)**
+   - `buildPathIndex(deviceRem)` builds `Map<string, Rem>` from single `getChildrenRem()` call
+   - `findExistingPathRem` and `ensurePathRem` accept optional index parameter
+   - `child_paths.tsx` and `path_creator.tsx` build index once per operation
+
+7. **Fuzzy matching**
+   - `fuzzyMatch(query, target)` scores non-contiguous character matches
+   - Scoring: +1 per match, +2 consecutive bonus, +3 path-separator bonus
+   - Used in filepath_copier and global path search
+
+8. **Global path search**
+   - Command `search-paths` opens `path_search` popup
+   - Scans all devices, fuzzy-filtered list with device labels
+   - Enter navigates to path Rem, Cmd/Ctrl+Enter copies path
+   - Widget `src/widgets/path_search.tsx`
+
 ## File Overview
 
 - `src/widgets/index.tsx` — Main plugin: settings, commands, widget registration
@@ -111,10 +127,12 @@ Filepaths (root)
 - `src/widgets/path_creator.tsx` — Popup for creating new path hierarchies (flat structure)
 - `src/widgets/filepath_copier.tsx` — Popup for copying existing filepaths
 - `src/widgets/child_paths.tsx` — DocumentBelowTitle widget displaying navigable child paths
+- `src/widgets/path_search.tsx` — Popup for searching all paths across devices with fuzzy matching
 - `src/widgets/utils.ts` — Shared utilities:
   - Constants: `DEVICE_NAME_STORAGE_KEY`, `FILEPATH_ROOT_SETTING_ID`, etc.
   - Path helpers: `normalizePath`, `toFileUrl`, `getPathPrefixes`
   - Path identification: `isPathRem` (structural check), `getPathFromRem`, `getLastSegment`, `isDirectChild`
+  - Performance: `buildPathIndex` (per-operation Map index), `fuzzyMatch` (non-contiguous character matching)
   - Rem management: `ensurePathRem`, `findExistingPathRem`, `ensureFilepathsRoot`, `ensureDeviceRem`
 
 ## SDK Gotchas

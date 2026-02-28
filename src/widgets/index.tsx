@@ -34,6 +34,10 @@ async function onActivate(plugin: ReactRNPlugin) {
     dimensions: { height: 'auto', width: '500px' },
   });
 
+  await plugin.app.registerWidget('path_search', WidgetLocation.Popup, {
+    dimensions: { height: 'auto', width: '500px' },
+  });
+
   // Register per-device link-creation toggles for existing devices
   const rootName = await getFilepathsRootName(plugin);
   const existingRoot = await plugin.rem.findByName(makePlainRichText(rootName), null);
@@ -109,6 +113,14 @@ async function onActivate(plugin: ReactRNPlugin) {
         docRemId,
         focusedRemId,
       });
+    },
+  });
+
+  await plugin.app.registerCommand({
+    id: 'search-paths',
+    name: 'Filepath: Search Paths',
+    action: async () => {
+      await plugin.widget.openPopup('path_search');
     },
   });
 }

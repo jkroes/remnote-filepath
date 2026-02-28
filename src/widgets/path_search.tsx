@@ -1,61 +1,50 @@
 import { WidgetLocation } from '@remnote/plugin-sdk';
 import { usePlugin, renderWidget, useRunAsync } from '@remnote/plugin-sdk';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { isPathRem, getPathFromRem, copyToClipboard, fuzzyMatch } from './utils';
+import {
+  getFilepathsRootName,
+  makePlainRichText,
+  getPathFromRem,
+  fuzzyMatch,
+  copyToClipboard,
+} from './utils';
 import '../style.css';
 
-interface FilepathEntry {
+interface SearchEntry {
   path: string;
   remId: string;
+  device: string;
 }
 
-function FilepathCopier() {
+function PathSearch() {
   const plugin = usePlugin();
   const [filter, setFilter] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const data = useRunAsync(async () => {
-    const ctx = await plugin.widget.getWidgetContext<WidgetLocation.Popup>();
-    const docRemId = ctx?.contextData?.docRemId as string | undefined;
-    const focusedRemId = ctx?.contextData?.focusedRemId as string | null;
-    if (!docRemId) return { entries: [] as FilepathEntry[], focusedRemId: null };
+  const entries = useRunAsync(async () => {
+    const rootName = await getFilepathsRootName(plugin);
+    const root = await plugin.rem.findByName(makePlainRichText(rootName), null);
+    if (!root) return [] as SearchEntry[];
 
-    const docRem = await plugin.rem.findOne(docRemId);
-    if (!docRem) return { entries: [] as FilepathEntry[], focusedRemId };
+    const devices = await root.getChildrenRem();
+    const results: SearchEntry[] = [];
 
-    const descendants = await docRem.getDescendants();
-    const allRems = [docRem, ...(descendants ?? [])];
-    const entries: FilepathEntry[] = [];
-    const seen = new Set<string>();
+    for (const device of devices ?? []) {
+      const deviceName = (await plugin.richText.toString(device.text || [])).trim();
+      if (!deviceName) continue;
 
-    for (const rem of allRems) {
-      if (!rem.text || !Array.isArray(rem.text)) continue;
-
-      for (const element of rem.text) {
-        if (typeof element === 'string' || element?.i !== 'q' || !element?._id) continue;
-
-        try {
-          const referencedRem = await plugin.rem.findOne(element._id);
-          if (!referencedRem) continue;
-          if (!(await isPathRem(referencedRem, plugin))) continue;
-
-          const path = getPathFromRem(referencedRem);
-          if (path && !seen.has(path)) {
-            seen.add(path);
-            entries.push({ path, remId: rem._id });
-          }
-        } catch (_) {
-          // Skip references that can't be resolved
+      const children = await device.getChildrenRem();
+      for (const child of children ?? []) {
+        const path = getPathFromRem(child);
+        if (path) {
+          results.push({ path, remId: child._id, device: deviceName });
         }
       }
     }
 
-    return { entries, focusedRemId };
-  }, []);
-
-  const entries = data?.entries ?? [];
-  const focusedRemId = data?.focusedRemId ?? null;
+    return results;
+  }, []) ?? [];
 
   const filtered = filter.length === 0
     ? entries
@@ -63,16 +52,6 @@ function FilepathCopier() {
         .map((e) => ({ ...e, ...fuzzyMatch(filter, e.path) }))
         .filter((e) => e.match)
         .sort((a, b) => b.score - a.score);
-
-  // Determine preselected index based on focused Rem
-  useEffect(() => {
-    if (!focusedRemId || filtered.length === 0) {
-      setSelectedIndex(0);
-      return;
-    }
-    const idx = filtered.findIndex((e) => e.remId === focusedRemId);
-    setSelectedIndex(idx >= 0 ? idx : 0);
-  }, [focusedRemId, filtered.length]);
 
   // Keep selected item in view
   useEffect(() => {
@@ -82,7 +61,18 @@ function FilepathCopier() {
     item?.scrollIntoView({ block: 'nearest' });
   }, [selectedIndex]);
 
-  const copyAndClose = useCallback(
+  const navigateToPath = useCallback(
+    async (remId: string) => {
+      const rem = await plugin.rem.findOne(remId);
+      if (rem) {
+        await rem.openRemAsPage();
+      }
+      await plugin.widget.closePopup();
+    },
+    [plugin]
+  );
+
+  const copyPath = useCallback(
     async (path: string) => {
       const copied = await copyToClipboard(path);
       await plugin.app.toast(copied ? 'Copied to clipboard' : 'Failed to copy');
@@ -101,15 +91,19 @@ function FilepathCopier() {
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (filtered[selectedIndex]) {
-          copyAndClose(filtered[selectedIndex].path);
+        const entry = filtered[selectedIndex];
+        if (!entry) return;
+        if (e.metaKey || e.ctrlKey) {
+          copyPath(entry.path);
+        } else {
+          navigateToPath(entry.remId);
         }
       } else if (e.key === 'Escape') {
         e.preventDefault();
         plugin.widget.closePopup();
       }
     },
-    [filtered, selectedIndex, copyAndClose, plugin]
+    [filtered, selectedIndex, navigateToPath, copyPath, plugin]
   );
 
   // Reset selection when filter changes
@@ -119,13 +113,13 @@ function FilepathCopier() {
 
   return (
     <div className="p-4 bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100" onKeyDown={handleKeyDown}>
-      <h2 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-50">Copy Filepath</h2>
+      <h2 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-50">Search Paths</h2>
 
       <input
         type="text"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        placeholder="Filter paths..."
+        placeholder="Search paths..."
         autoFocus
         className="w-full px-3 py-2 mb-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 placeholder-gray-500"
       />
@@ -133,8 +127,8 @@ function FilepathCopier() {
       {filtered.length === 0 ? (
         <p className="text-sm text-gray-500 dark:text-gray-400 italic">
           {entries.length === 0
-            ? 'No path references found in this document.'
-            : 'No filepaths match your filter.'}
+            ? 'No paths found.'
+            : 'No paths match your filter.'}
         </p>
       ) : (
         <div
@@ -143,20 +137,32 @@ function FilepathCopier() {
         >
           {filtered.map((entry, i) => (
             <button
-              key={entry.path}
-              onClick={() => copyAndClose(entry.path)}
-              className={`text-left px-3 py-2 rounded-md text-sm font-mono break-all transition-colors ${i === selectedIndex
+              key={entry.remId}
+              onClick={() => navigateToPath(entry.remId)}
+              className={`text-left px-3 py-2 rounded-md text-sm font-mono break-all transition-colors ${
+                i === selectedIndex
                   ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white'
                   : 'text-gray-900 dark:text-gray-100 border border-transparent hover:bg-gray-100 dark:hover:bg-zinc-800'
-                }`}
+              }`}
             >
               {entry.path}
+              <span className={`ml-2 text-xs font-sans ${
+                i === selectedIndex
+                  ? 'text-blue-200'
+                  : 'text-gray-400 dark:text-gray-500'
+              }`}>
+                &middot; {entry.device}
+              </span>
             </button>
           ))}
         </div>
       )}
+
+      <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+        Enter to navigate &middot; {typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '\u2318' : 'Ctrl'}+Enter to copy
+      </p>
     </div>
   );
 }
 
-renderWidget(FilepathCopier);
+renderWidget(PathSearch);
