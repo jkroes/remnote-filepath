@@ -1,6 +1,6 @@
 import React from 'react';
 import { renderWidget, usePlugin, useTracker, AppEvents, WidgetLocation } from '@remnote/plugin-sdk';
-import { FILEPATH_SEGMENT_POWERUP, getPathFromRem, getLastSegment, isDirectChild } from './utils';
+import { isPathRem, getPathFromRem, getLastSegment, isDirectChild } from './utils';
 import '../style.css';
 
 const { useState, useEffect } = React;
@@ -30,8 +30,7 @@ function ChildPaths() {
     const rem = await plugin.rem.findOne(documentId);
     if (!rem) return null;
 
-    const hasPowerup = await rem.hasPowerup(FILEPATH_SEGMENT_POWERUP);
-    if (!hasPowerup) return null;
+    if (!(await isPathRem(rem, plugin))) return null;
 
     const myPath = getPathFromRem(rem);
     if (!myPath) return null;
@@ -43,7 +42,6 @@ function ChildPaths() {
     const result: Array<{ id: string; path: string; label: string }> = [];
 
     for (const sibling of siblings ?? []) {
-      if (!(await sibling.hasPowerup(FILEPATH_SEGMENT_POWERUP))) continue;
       const sibPath = getPathFromRem(sibling);
       if (isDirectChild(myPath, sibPath)) {
         result.push({ id: sibling._id, path: sibPath, label: getLastSegment(sibPath) });

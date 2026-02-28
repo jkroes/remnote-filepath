@@ -48,9 +48,9 @@ When working on plugin functionality:
 3. Reference official plugins for implementation examples
 4. Follow RemNote plugin conventions and best practices
 
-## Architecture: Flat Hierarchy with Powerup
+## Architecture: Flat Hierarchy with Structural Identification
 
-**Current Design:** All path Rems are stored flat as direct children of the device Rem. Each Rem contains the full absolute path in its text (e.g., `/Users/john/Documents/file.txt`). A powerup marker identifies path Rems. Child relationships are determined dynamically by parsing path strings.
+**Current Design:** All path Rems are stored flat as direct children of the device Rem. Each Rem contains the full absolute path in its text (e.g., `/Users/john/Documents/file.txt`). Path Rems are identified by structural position (direct child of device Rem, grandchild of Filepaths root) — no powerup or tag needed. Child relationships are determined dynamically by parsing path strings.
 
 **Hierarchy structure:**
 ```
@@ -67,10 +67,10 @@ Filepaths (root)
 
 ## Implemented Features
 
-1. **Flat hierarchy with powerup**
+1. **Flat hierarchy with structural identification**
    - All path Rems stored flat under device Rem (no nesting)
    - Each Rem's text = full absolute path (with optional `file://` link)
-   - `Filepath Segment` powerup marks path Rems (replaces old `#path` tag)
+   - Path Rems identified by position: direct child of device Rem, grandchild of Filepaths root
    - Widget shows child paths dynamically via path parsing
 
 2. **Per-device link-creation toggle**
@@ -87,7 +87,7 @@ Filepaths (root)
 
 4. **"Copy Filepath" command + popup**
    - Command `copy-filepath` opens `filepath_copier` popup
-   - Scans document for Rem references to path Rems (via powerup check)
+   - Scans document for Rem references to path Rems (via structural check)
    - Reads full path directly from referenced Rem's text
    - Widget `src/widgets/filepath_copier.tsx`
 
@@ -95,30 +95,29 @@ Filepaths (root)
    - `DocumentBelowTitle` widget shows child paths below page title on path Rems
    - Listens to `AppEvents.URLChange` to re-fetch widget context on navigation (document-level widgets are single reused instances)
    - Uses `useTracker` with `[documentId]` dep for reactive data fetching
-   - Filters out non-path Rems by checking powerup (powerupFilter doesn't work on document-level locations)
+   - Filters out non-path Rems by structural check (is Rem a grandchild of Filepaths root?)
    - Displays just the final segment (e.g., "file.txt" instead of full path)
    - Clickable buttons navigate to child path Rems
    - Returns null for non-path Rems or leaf nodes with no children
 
 ## File Overview
 
-- `src/widgets/index.tsx` — Main plugin: settings, powerup registration, commands, widget registration
+- `src/widgets/index.tsx` — Main plugin: settings, commands, widget registration
 - `src/widgets/device_picker.tsx` — Popup for device name selection
 - `src/widgets/path_creator.tsx` — Popup for creating new path hierarchies (flat structure)
 - `src/widgets/filepath_copier.tsx` — Popup for copying existing filepaths
 - `src/widgets/child_paths.tsx` — DocumentBelowTitle widget displaying navigable child paths
 - `src/widgets/utils.ts` — Shared utilities:
-  - Constants: `FILEPATH_SEGMENT_POWERUP`, `DEVICE_NAME_STORAGE_KEY`, etc.
-  - Path parsing: `parsePathSegments`, `buildFileUrlFromSegments`
-  - Powerup helpers: `isPathSegment`, `getPathFromRem`, `getLastSegment`, `isDirectChild`
+  - Constants: `DEVICE_NAME_STORAGE_KEY`, `FILEPATH_ROOT_SETTING_ID`, etc.
+  - Path parsing: `parsePathSegments`, `buildFileUrlFromSegments`, `buildPathStringFromSegments`
+  - Path identification: `isPathRem` (structural check), `getPathFromRem`, `getLastSegment`, `isDirectChild`
   - Rem management: `ensureSegmentRem`, `findExistingPathRem`, `ensureFilepathsRoot`, `ensureDeviceRem`
-  - OLD (kept for backward compatibility): `hasPathTag`, `collectTaggedSegments`, `buildPathStringFromSegments`
 
 ## SDK Gotchas
 
 - **Document-level widget locations (`DocumentBelowTitle`, etc.) are single reused instances** — not one per document. Must listen to `AppEvents.URLChange` to detect navigation and re-fetch widget context.
 - **`getWidgetContext` is not tracked by `useTracker`** — fetch it via `useState` + `useEffect` with a URLChange listener, then pass the ID as a dep to `useTracker` for data fetching.
-- **`powerupFilter` only works with per-Rem locations** (`UnderRemEditor`, `RightSideOfEditor`) — document-level widgets must filter themselves by checking the powerup manually.
+- **`powerupFilter` only works with per-Rem locations** (`UnderRemEditor`, `RightSideOfEditor`) — document-level widgets must filter themselves manually.
 
 ## Sandbox
 

@@ -3,7 +3,6 @@ import {
   DEVICE_NAME_STORAGE_KEY,
   DEFAULT_FILEPATH_ROOT_NAME,
   FILEPATH_ROOT_SETTING_ID,
-  FILEPATH_SEGMENT_POWERUP,
   makePlainRichText,
   getFilepathsRootName,
 } from './utils';
@@ -15,14 +14,6 @@ async function onActivate(plugin: ReactRNPlugin) {
     defaultValue: DEFAULT_FILEPATH_ROOT_NAME,
     description: 'Name of the top-level Rem that stores all generated file path hierarchies.',
   });
-
-  // Register the Filepath Segment powerup (no slots)
-  await plugin.app.registerPowerup(
-    'Filepath Segment',
-    FILEPATH_SEGMENT_POWERUP,
-    'A segment in a file path hierarchy',
-    { slots: [] }
-  );
 
   // Register child paths widget (DocumentBelowTitle — SDK provides documentId)
   await plugin.app.registerWidget('child_paths', WidgetLocation.DocumentBelowTitle, {

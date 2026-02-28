@@ -4,7 +4,6 @@ import type { RNPlugin } from '@remnote/plugin-sdk';
 export const DEVICE_NAME_STORAGE_KEY = 'device-name';
 export const DEFAULT_FILEPATH_ROOT_NAME = 'Filepaths';
 export const FILEPATH_ROOT_SETTING_ID = 'filepath-root-name';
-export const FILEPATH_SEGMENT_POWERUP = 'filepath_segment';
 
 export const WINDOWS_DRIVE_SEGMENT_REGEX = /^[a-zA-Z]:$/;
 const WINDOWS_DRIVE_PREFIX_REGEX = /^\/?([a-zA-Z]:)(?:\/|$)/;
@@ -159,9 +158,15 @@ export function buildFileUrlFromSegments(segments: string[], absolute = true) {
   return `file://${prefix}${joined}`;
 }
 
-// Powerup-based helpers
-export async function isPathSegment(rem: any) {
-  return await rem.hasPowerup(FILEPATH_SEGMENT_POWERUP);
+// Structural helpers
+export async function isPathRem(rem: any, plugin: RNPlugin): Promise<boolean> {
+  const parent = await rem.getParentRem();
+  if (!parent) return false;
+  const grandparent = await parent.getParentRem();
+  if (!grandparent) return false;
+  const rootName = await getFilepathsRootName(plugin);
+  const grandparentText = (await plugin.richText.toString(grandparent.text || [])).trim();
+  return grandparentText === rootName;
 }
 
 export function getPathFromRem(rem: any): string {
@@ -189,11 +194,9 @@ export function isDirectChild(parentPath: string, childPath: string): boolean {
 export async function findExistingPathRem(
   deviceRem: any,
   fullPath: string,
-  plugin: RNPlugin
 ) {
   const children = await deviceRem.getChildrenRem();
   for (const child of children ?? []) {
-    if (!(await isPathSegment(child))) continue;
     const childPath = getPathFromRem(child);
     if (childPath === fullPath) {
       return child;
@@ -210,7 +213,7 @@ export async function ensureSegmentRem(
   plugin: RNPlugin
 ) {
   // Check if it already exists
-  const existing = await findExistingPathRem(deviceRem, fullPath, plugin);
+  const existing = await findExistingPathRem(deviceRem, fullPath);
   if (existing) {
     return existing;
   }
@@ -226,9 +229,6 @@ export async function ensureSegmentRem(
   } catch (_err) {
     // leave in default location if move fails
   }
-
-  // Add powerup
-  await newRem.addPowerup(FILEPATH_SEGMENT_POWERUP);
 
   // Set text (full path as link or plain text)
   if (createLinks) {
@@ -260,34 +260,6 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     document.body.removeChild(textarea);
   }
   return copied;
-}
-
-// OLD FUNCTIONS - kept for backwards compatibility during migration
-export async function hasPathTag(rem: any, pathTagId: string) {
-  const tagRems = await rem.getTagRems();
-  return tagRems?.some((tag: any) => tag._id === pathTagId) ?? false;
-}
-
-export async function collectTaggedSegments(
-  rem: any,
-  pathTagId: string,
-  _plugin?: any
-) {
-  const segments: string[] = [];
-  let current: any | undefined = rem;
-
-  while (current) {
-    if (await hasPathTag(current, pathTagId)) {
-      const trimmed = extractTextFromRichText(current.text).trim();
-      if (trimmed.length > 0) {
-        segments.unshift(trimmed);
-      }
-    }
-
-    current = await current.getParentRem();
-  }
-
-  return segments;
 }
 
 export function buildPathStringFromSegments(segments: string[], absolute = true) {

@@ -1,7 +1,7 @@
 import { WidgetLocation } from '@remnote/plugin-sdk';
 import { usePlugin, renderWidget, useRunAsync } from '@remnote/plugin-sdk';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { isPathSegment, getPathFromRem, copyToClipboard } from './utils';
+import { isPathRem, getPathFromRem, copyToClipboard } from './utils';
 import '../style.css';
 
 interface FilepathEntry {
@@ -38,7 +38,7 @@ function FilepathCopier() {
         try {
           const referencedRem = await plugin.rem.findOne(element._id);
           if (!referencedRem) continue;
-          if (!(await isPathSegment(referencedRem))) continue;
+          if (!(await isPathRem(referencedRem, plugin))) continue;
 
           const path = getPathFromRem(referencedRem);
           if (path && !seen.has(path)) {
