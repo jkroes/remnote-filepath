@@ -1,5 +1,5 @@
-import { renderWidget, usePlugin } from '@remnote/plugin-sdk';
-import { useState, useCallback } from 'react';
+import { renderWidget, usePlugin, WidgetLocation } from '@remnote/plugin-sdk';
+import { useState, useCallback, useEffect } from 'react';
 import {
   DEVICE_NAME_STORAGE_KEY,
   normalizePath,
@@ -17,6 +17,16 @@ function PathCreator() {
   const [path, setPath] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
+  useEffect(() => {
+    (async () => {
+      const ctx = await plugin.widget.getWidgetContext<WidgetLocation.Popup>();
+      const prefill = ctx?.contextData?.prefillPath;
+      if (prefill) {
+        setPath(prefill + '/');
+      }
+    })();
+  }, []);
+
   const handleCreate = useCallback(async () => {
     if (isCreating) return;
 
@@ -29,10 +39,16 @@ function PathCreator() {
     setIsCreating(true);
 
     try {
-      const { path: normalizedPath } = normalizePath(trimmedPath);
+      const { path: normalizedPath, absolute } = normalizePath(trimmedPath);
 
       if (normalizedPath.length === 0) {
         await plugin.app.toast('Provide a valid file path');
+        setIsCreating(false);
+        return;
+      }
+
+      if (!absolute) {
+        await plugin.app.toast('Please enter an absolute path');
         setIsCreating(false);
         return;
       }
@@ -59,7 +75,13 @@ function PathCreator() {
         return;
       }
 
-      const createLinks = await plugin.settings.getSetting<boolean>(`device-links-${deviceName}`) !== false;
+      let createLinks = true;
+      try {
+        const setting = await plugin.settings.getSetting<boolean>(`device-links-${deviceName}`);
+        createLinks = setting !== false;
+      } catch (_) {
+        // Setting may not be registered (e.g., new device created after plugin activation)
+      }
 
       const prefixes = getPathPrefixes(normalizedPath);
       for (const prefix of prefixes) {

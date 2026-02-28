@@ -1,5 +1,4 @@
-import { WidgetLocation } from '@remnote/plugin-sdk';
-import { usePlugin, renderWidget, useRunAsync } from '@remnote/plugin-sdk';
+import { WidgetLocation, usePlugin, renderWidget, useRunAsync } from '@remnote/plugin-sdk';
 import { useState } from 'react';
 import { DEVICE_NAME_STORAGE_KEY } from './utils';
 import '../style.css';
@@ -53,7 +52,16 @@ function DevicePicker() {
       // SDK may not support registering settings outside onActivate
     }
 
-    await plugin.widget.closePopup();
+    // Check if we should chain to another popup
+    const ctx = await plugin.widget.getWidgetContext<WidgetLocation.Popup>();
+    const returnTo = ctx?.contextData?.returnTo as string | undefined;
+    if (returnTo) {
+      await plugin.widget.openPopup(returnTo, {
+        prefillPath: ctx?.contextData?.prefillPath,
+      });
+    } else {
+      await plugin.widget.closePopup();
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

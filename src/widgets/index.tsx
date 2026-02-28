@@ -5,6 +5,8 @@ import {
   FILEPATH_ROOT_SETTING_ID,
   makePlainRichText,
   getFilepathsRootName,
+  isPathRem,
+  getPathFromRem,
 } from './utils';
 
 async function onActivate(plugin: ReactRNPlugin) {
@@ -54,7 +56,30 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'path-to-hierarchy',
     name: 'Filepath: Create Path',
     action: async () => {
-      await plugin.widget.openPopup('path_creator');
+      // Pre-fill: check if current document is a path Rem
+      let prefillPath: string | undefined;
+      const paneId = await plugin.window.getFocusedPaneId();
+      const docRemId = await plugin.window.getOpenPaneRemId(paneId);
+      if (docRemId) {
+        const docRem = await plugin.rem.findOne(docRemId);
+        if (docRem && (await isPathRem(docRem, plugin))) {
+          prefillPath = getPathFromRem(docRem);
+        }
+      }
+
+      // Auto-prompt: check if device name is set
+      const deviceName = await plugin.storage.getLocal<string>(DEVICE_NAME_STORAGE_KEY);
+      if (!deviceName) {
+        const rootName = await getFilepathsRootName(plugin);
+        await plugin.widget.openPopup('device_picker', {
+          rootName,
+          returnTo: 'path_creator',
+          prefillPath,
+        });
+        return;
+      }
+
+      await plugin.widget.openPopup('path_creator', { prefillPath });
     },
   });
 

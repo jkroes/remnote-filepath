@@ -11,11 +11,18 @@ You are a RemNote plugin developer working on this project.
 
 - **Plugin API Reference**: https://plugins.remnote.com/
   - Contains the plugin API documentation and developer guides
-  - Use `ref_read_url` to access specific API pages
+  - Use `WebFetch` to access specific API pages
 
 - **Official Plugins Repository**: https://github.com/remnoteio/remnote-official-plugins
   - Reference implementations and code examples
   - Use GitHub MCP tools to explore code patterns
+
+## Commands
+
+- `npm run dev` — Start webpack dev server on port 8080 (load in RemNote as localhost plugin)
+- `npm run build` — Validate manifest, build production bundle, create PluginZip.zip
+- `npm run check-types` — Run TypeScript compiler (no emit)
+- `npm install` — Requires `dangerouslyDisableSandbox: true` (needs registry.npmjs.org)
 
 ## Development Guidelines
 
@@ -42,12 +49,6 @@ Before implementing any RemNote plugin feature, you MUST research in this order:
    - If documentation is unclear, refer to SDK source
    - Only guess as a last resort after exhausting all references
 
-When working on plugin functionality:
-1. Consult the Concepts Guide for patterns and architecture
-2. Research the SDK source code for API details
-3. Reference official plugins for implementation examples
-4. Follow RemNote plugin conventions and best practices
-
 ## Architecture: Flat Hierarchy with Structural Identification
 
 **Current Design:** All path Rems are stored flat as direct children of the device Rem. Each Rem contains the full absolute path in its text (e.g., `/Users/john/Documents/file.txt`). Path Rems are identified by structural position (direct child of device Rem, grandchild of Filepaths root) — no powerup or tag needed. Child relationships are determined dynamically by parsing path strings.
@@ -63,7 +64,7 @@ Filepaths (root)
     └── /Users/john/Documents/file.txt
 ```
 
-**Widget:** A `DocumentBelowTitle` widget displays navigable child paths (showing just the final segment) below the page title when viewing a path Rem. Uses `AppEvents.URLChange` to track navigation since document-level widgets are single reused instances. User notes appear as normal children beneath the path Rem.
+**Widget:** A `DocumentBelowTitle` widget displays breadcrumb navigation, a copy-to-clipboard button, and navigable child paths below the page title when viewing any path Rem. Uses `AppEvents.URLChange` to track navigation since document-level widgets are single reused instances. User notes appear as normal children beneath the path Rem.
 
 ## Implemented Features
 
@@ -80,8 +81,11 @@ Filepaths (root)
    - If false, creates plain text instead of `file://` link
 
 3. **"Create Path" command with input popup**
-   - Command `path-to-hierarchy` opens `path_creator` popup for path input
+   - Command `path-to-hierarchy` detects current path Rem context, checks device name
+   - If no device name set, auto-opens device picker first, then chains to path creator
    - User enters/pastes path in popup
+   - Pre-fills with current path + `/` when invoked from a path Rem
+   - Rejects relative paths with an error toast
    - Normalizes input, generates all path prefixes, creates a Rem for each
    - After creating hierarchy, copies the filepath to clipboard automatically
 
@@ -92,13 +96,13 @@ Filepaths (root)
    - Widget `src/widgets/filepath_copier.tsx`
 
 5. **Child paths navigation widget**
-   - `DocumentBelowTitle` widget shows child paths below page title on path Rems
-   - Listens to `AppEvents.URLChange` to re-fetch widget context on navigation (document-level widgets are single reused instances)
+   - `DocumentBelowTitle` widget shows breadcrumbs, copy button, and child paths on path Rems
+   - Breadcrumb trail shows clickable ancestor path segments for upward navigation
+   - Copy button copies current path to clipboard with toast feedback
+   - Widget renders on all path Rems (not just those with children)
+   - Listens to `AppEvents.URLChange` to re-fetch widget context on navigation
    - Uses `useTracker` with `[documentId]` dep for reactive data fetching
-   - Filters out non-path Rems by structural check (is Rem a grandchild of Filepaths root?)
-   - Displays just the final segment (e.g., "file.txt" instead of full path)
-   - Clickable buttons navigate to child path Rems
-   - Returns null for non-path Rems or leaf nodes with no children
+   - Returns null for non-path Rems only
 
 ## File Overview
 
@@ -119,6 +123,12 @@ Filepaths (root)
 - **`getWidgetContext` is not tracked by `useTracker`** — fetch it via `useState` + `useEffect` with a URLChange listener, then pass the ID as a dep to `useTracker` for data fetching.
 - **`powerupFilter` only works with per-Rem locations** (`UnderRemEditor`, `RightSideOfEditor`) — document-level widgets must filter themselves manually.
 - **RemNote overrides Tailwind color classes in dark mode** — Host CSS redefines classes like `.dark .dark\:text-white` using CSS variables (`--rn-colors-white-val`) that invert semantically (white becomes black). Avoid `dark:text-white`, `dark:text-gray-*`, etc. on form elements. Use explicit CSS rules (e.g., `.dark input { color: #fff; }`) instead.
+- **`plugin.settings.getSetting` throws on unregistered settings** — If a setting ID was never registered (e.g., device deleted, plugin reactivated), `getSetting` throws `TypeError: Cannot read properties of undefined (reading 'defaultValue')`. Always wrap in try/catch with a sensible default.
+- **`registerBooleanSetting` outside `onActivate` is unreliable** — Best-effort registration in popup widgets may silently fail. Code that reads dynamically-registered settings must handle the unregistered case.
+
+## Patterns
+
+- **Popup chaining**: Pass `{ returnTo: 'widget_name', ...forwardedData }` in `contextData` when opening a popup that should chain to another. The receiving popup calls `openPopup(returnTo, forwardedData)` instead of `closePopup()`. Used by device_picker → path_creator flow.
 
 ## Sandbox
 
