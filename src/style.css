@@ -59,3 +59,30 @@ body,
 .dark textarea::placeholder {
   color: #9ca3af;
 }
+
+/*
+ * Child paths widget — explicit colors to avoid RemNote's
+ * dark-mode CSS variable overrides on Tailwind classes.
+ */
+
+/* Separators: / and · */
+.cp-separator { color: #9ca3af; }
+.dark .cp-separator { color: #a1a1aa; }
+
+/* Ancestor links */
+.cp-ancestor { color: #4b5563; }
+.cp-ancestor:hover { color: #1f2937; text-decoration: underline; }
+.dark .cp-ancestor { color: #d4d4d8; }
+.dark .cp-ancestor:hover { color: #fafafa; }
+
+/* Child pills */
+.cp-pill { background: #e5e7eb; color: #1f2937; }
+.cp-pill:hover { background: #d1d5db; }
+.dark .cp-pill { background: #52525b; color: #f4f4f5; }
+.dark .cp-pill:hover { background: #71717a; }
+
+/* Copy button */
+.cp-copy { color: #6b7280; }
+.cp-copy:hover { color: #1f2937; background: #e5e7eb; }
+.dark .cp-copy { color: #a1a1aa; }
+.dark .cp-copy:hover { color: #f4f4f5; background: #52525b; }
