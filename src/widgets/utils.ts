@@ -200,6 +200,8 @@ export function getLastSegment(path: string): string {
   return parts[parts.length - 1] || '';
 }
 
+// NOTE: Returns false for root path '/' as parent because '/' + '/' produces
+// '//' which won't match standard child paths like '/Users'.
 export function isDirectChild(parentPath: string, childPath: string): boolean {
   const parent = parentPath.trim();
   const child = childPath.trim();
