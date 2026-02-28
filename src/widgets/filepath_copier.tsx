@@ -133,8 +133,8 @@ function FilepathCopier() {
   }, [filter]);
 
   return (
-    <div className="p-4 text-gray-900 bg-white" onKeyDown={handleKeyDown}>
-      <h2 className="text-lg font-semibold mb-2 text-gray-800">Copy Filepath</h2>
+    <div className="p-4 bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100" onKeyDown={handleKeyDown}>
+      <h2 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-50">Copy Filepath</h2>
 
       <input
         type="text"
@@ -142,11 +142,11 @@ function FilepathCopier() {
         onChange={(e) => setFilter(e.target.value)}
         placeholder="Filter paths..."
         autoFocus
-        className="w-full px-3 py-2 mb-3 border border-gray-300 rounded focus:outline-none focus:border-blue-400"
+        className="w-full px-3 py-2 mb-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
       />
 
       {filtered.length === 0 ? (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-gray-400 italic">
           {entries.length === 0
             ? 'No path references found in this document.'
             : 'No filepaths match your filter.'}
@@ -154,17 +154,16 @@ function FilepathCopier() {
       ) : (
         <div
           ref={listRef}
-          className="max-h-64 overflow-y-auto flex flex-col gap-1"
+          className="max-h-64 overflow-y-auto flex flex-col gap-1 pr-1"
         >
           {filtered.map((entry, i) => (
             <button
               key={entry.path}
               onClick={() => copyAndClose(entry.path)}
-              className={`text-left px-3 py-2 rounded text-sm font-mono break-all transition-colors ${
-                i === selectedIndex
-                  ? 'bg-blue-100 border border-blue-400'
-                  : 'border border-gray-200 hover:bg-blue-50 hover:border-blue-300'
-              }`}
+              className={`text-left px-3 py-2 rounded-md text-sm font-mono break-all transition-colors ${i === selectedIndex
+                  ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white'
+                  : 'text-gray-900 dark:text-gray-100 border border-transparent hover:bg-gray-100 dark:hover:bg-zinc-800'
+                }`}
             >
               {entry.path}
             </button>

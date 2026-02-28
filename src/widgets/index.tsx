@@ -37,16 +37,16 @@ const getFilepathsRootName = (plugin: ReactRNPlugin) =>
 async function ensurePathTag(plugin: ReactRNPlugin, tagName: string) {
   const nameRichText = makePlainRichText(tagName);
   const existing = await plugin.rem.findByName(nameRichText, null);
-  
+
   if (existing) {
     return existing;
   }
-  
+
   const newTag = await plugin.rem.createRem();
   if (!newTag) {
     return undefined;
   }
-  
+
   await newTag.setText(nameRichText);
   return newTag;
 }
@@ -54,16 +54,16 @@ async function ensurePathTag(plugin: ReactRNPlugin, tagName: string) {
 async function ensureFilepathsRoot(plugin: ReactRNPlugin, rootName: string) {
   const nameRichText = makePlainRichText(rootName);
   const existing = await plugin.rem.findByName(nameRichText, null);
-  
+
   if (existing) {
     return existing;
   }
-  
+
   const newRoot = await plugin.rem.createRem();
   if (!newRoot) {
     return undefined;
   }
-  
+
   await newRoot.setText(nameRichText);
   try {
     await newRoot.setParent(null);
@@ -256,6 +256,10 @@ async function onActivate(plugin: ReactRNPlugin) {
     dimensions: { height: 'auto', width: '400px' },
   });
 
+  await plugin.app.registerWidget('path_creator', WidgetLocation.Popup, {
+    dimensions: { height: 'auto', width: '450px' },
+  });
+
   // Register per-device link-creation toggles for existing devices
   const rootName = await getFilepathsRootName(plugin);
   const existingRoot = await plugin.rem.findByName(makePlainRichText(rootName), null);
@@ -276,106 +280,15 @@ async function onActivate(plugin: ReactRNPlugin) {
 
   await plugin.app.registerCommand({
     id: 'path-to-hierarchy',
-    name: 'Create Path Hierarchy',
+    name: 'Filepath: Create Path',
     action: async () => {
-      const focusedRem = await plugin.focus.getFocusedRem();
-      
-      if (!focusedRem) {
-        await plugin.app.toast('No rem is currently focused');
-        return;
-      }
-      
-      const remText = focusedRem.text;
-      
-      if (!remText || remText.length === 0) {
-        await plugin.app.toast('The focused rem has no text');
-        return;
-      }
-      
-      const textString = await plugin.richText.toString(remText);
-      const trimmedPath = textString.trim();
-      
-      if (trimmedPath.length === 0) {
-        await plugin.app.toast('The focused rem has no text content');
-        return;
-      }
-      
-      const { segments, absolute } = parsePathSegments(trimmedPath);
-      
-      if (segments.length === 0) {
-        await plugin.app.toast('Provide a valid file path to expand');
-        return;
-      }
-      
-      const pathTagName = await getPathTagName(plugin);
-      const pathTag = await ensurePathTag(plugin, pathTagName);
-      if (!pathTag) {
-        await plugin.app.toast(`Unable to create or fetch the "${pathTagName}" tag`);
-        return;
-      }
-      
-      const rootName = await getFilepathsRootName(plugin);
-      const root = await ensureFilepathsRoot(plugin, rootName);
-      if (!root) {
-        await plugin.app.toast(`Unable to create or fetch the "${rootName}" root`);
-        return;
-      }
-
-      const deviceName = await plugin.storage.getLocal<string>(DEVICE_NAME_STORAGE_KEY);
-      if (!deviceName) {
-        await plugin.app.toast('No device name set. Run "Set Device Name" first.');
-        return;
-      }
-
-      const deviceRem = await ensureDeviceRem(plugin, root, deviceName);
-      if (!deviceRem) {
-        await plugin.app.toast('Unable to create or fetch the device Rem');
-        return;
-      }
-
-      const createLinks = await plugin.settings.getSetting<boolean>(`device-links-${deviceName}`) !== false;
-
-      let currentParent: any = deviceRem;
-      const accumulatedSegments: string[] = [];
-
-      for (const rawSegment of segments) {
-        const segment = rawSegment.trim();
-        if (segment.length === 0) {
-          continue;
-        }
-
-        accumulatedSegments.push(segment);
-
-        let child =
-          await findChildPathRem(currentParent, segment, pathTag._id, plugin);
-
-        if (!child) {
-          child = await createChildPathRem(currentParent, segment, plugin);
-          if (!child) {
-            await plugin.app.toast('Unable to create a rem for part of the path');
-            return;
-          }
-        }
-
-        await ensureRemTaggedAndLinked(
-          child,
-          segment,
-          [...accumulatedSegments],
-          pathTag,
-          absolute,
-          createLinks
-        );
-        currentParent = child;
-      }
-      
-      await focusedRem.remove();
-      await plugin.app.toast(`Created path hierarchy under "${rootName} > ${deviceName}"`);
+      await plugin.widget.openPopup('path_creator');
     },
   });
 
   await plugin.app.registerCommand({
     id: 'set-device-name',
-    name: 'Set Device Name',
+    name: 'Filepath: Set Device Name',
     action: async () => {
       const rootName = await getFilepathsRootName(plugin);
       await plugin.widget.openPopup('device_picker', { rootName });
@@ -388,7 +301,7 @@ async function onActivate(plugin: ReactRNPlugin) {
 
   await plugin.app.registerCommand({
     id: 'copy-filepath',
-    name: 'Copy Filepath',
+    name: 'Filepath: Copy Path',
     action: async () => {
       const paneId = await plugin.window.getFocusedPaneId();
       const docRemId = await plugin.window.getOpenPaneRemId(paneId);
