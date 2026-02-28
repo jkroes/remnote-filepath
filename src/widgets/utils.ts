@@ -5,11 +5,6 @@ export const DEVICE_NAME_STORAGE_KEY = 'device-name';
 export const DEFAULT_FILEPATH_ROOT_NAME = 'Filepaths';
 export const FILEPATH_ROOT_SETTING_ID = 'filepath-root-name';
 
-export const WINDOWS_DRIVE_SEGMENT_REGEX = /^[a-zA-Z]:$/;
-const WINDOWS_DRIVE_PREFIX_REGEX = /^\/?([a-zA-Z]:)(?:\/|$)/;
-const FILE_PROTOCOL_REGEX = /^file:\/\//i;
-const BACKSLASH_REGEX = /\\/g;
-
 // Rich text helpers
 export const makePlainRichText = (text: string) => [
   {
@@ -99,63 +94,66 @@ export async function ensureDeviceRem(
   return newRem;
 }
 
-// Path parsing
-export function parsePathSegments(rawPath: string) {
-  let path = rawPath.trim();
+// Path helpers
+export function normalizePath(rawInput: string): { path: string; absolute: boolean } {
+  let path = rawInput.trim();
+  if (path.length === 0) return { path: '', absolute: false };
 
-  if (path.length === 0) {
-    return { segments: [], absolute: false };
+  // Strip file:// prefix
+  path = path.replace(/^file:\/\//i, '');
+
+  // Normalize backslashes
+  path = path.replace(/\\/g, '/');
+
+  // Check for /C:/ pattern (from file:///C:/...)
+  if (/^\/[a-zA-Z]:/.test(path)) {
+    path = path.slice(1);
+    return { path, absolute: true };
   }
 
-  if (FILE_PROTOCOL_REGEX.test(path)) {
-    path = path.replace(FILE_PROTOCOL_REGEX, '');
+  // Windows drive letter
+  if (/^[a-zA-Z]:/.test(path)) {
+    return { path, absolute: true };
   }
 
-  path = path.replace(BACKSLASH_REGEX, '/');
-
-  let absolute = false;
-  let drive: string | undefined;
-
-  const driveMatch = path.match(WINDOWS_DRIVE_PREFIX_REGEX);
-  if (driveMatch) {
-    drive = driveMatch[1];
-    absolute = true;
-    path = path.slice(driveMatch[0].length);
-  } else if (path.startsWith('/')) {
-    absolute = true;
-    path = path.replace(/^\/+/, '');
+  // Unix absolute
+  if (path.startsWith('/')) {
+    return { path, absolute: true };
   }
 
-  const parts = path
-    .split('/')
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0);
-
-  const segments = drive ? [drive, ...parts] : parts;
-
-  return { segments, absolute };
+  // Relative
+  return { path, absolute: false };
 }
 
-export function buildFileUrlFromSegments(segments: string[], absolute = true) {
-  if (segments.length === 0) {
-    return undefined;
+export function toFileUrl(path: string): string {
+  // Bare Windows drive: C: → file:///C:/
+  if (/^[a-zA-Z]:$/.test(path)) {
+    return `file:///${path}/`;
+  }
+  // Windows drive with path: C:/Users → file:///C:/Users
+  if (/^[a-zA-Z]:/.test(path)) {
+    return `file:///${path}`;
+  }
+  // Unix (path already has leading /) or relative
+  return `file://${path}`;
+}
+
+export function getPathPrefixes(path: string): string[] {
+  if (path.length === 0) return [];
+
+  const prefixes: string[] = [];
+
+  // Find each / and take the substring up to that point
+  for (let i = 1; i < path.length; i++) {
+    if (path[i] === '/') {
+      prefixes.push(path.slice(0, i));
+    }
   }
 
-  const [first, ...rest] = segments;
+  // Always include the full path itself
+  prefixes.push(path);
 
-  if (WINDOWS_DRIVE_SEGMENT_REGEX.test(first)) {
-    const remainder = rest.join('/');
-    const drivePath = remainder.length > 0 ? `${first}/${remainder}` : `${first}/`;
-    return `file:///${drivePath}`;
-  }
-
-  const joined = segments.join('/');
-  if (joined.length === 0) {
-    return absolute ? 'file:///' : 'file://';
-  }
-
-  const prefix = absolute ? '/' : '';
-  return `file://${prefix}${joined}`;
+  return prefixes;
 }
 
 // Structural helpers
@@ -205,10 +203,9 @@ export async function findExistingPathRem(
   return undefined;
 }
 
-export async function ensureSegmentRem(
+export async function ensurePathRem(
   deviceRem: any,
   fullPath: string,
-  absolute: boolean,
   createLinks: boolean,
   plugin: RNPlugin
 ) {
@@ -232,8 +229,7 @@ export async function ensureSegmentRem(
 
   // Set text (full path as link or plain text)
   if (createLinks) {
-    const { segments } = parsePathSegments(fullPath);
-    const fileUrl = buildFileUrlFromSegments(segments, absolute) ?? `file://${fullPath}`;
+    const fileUrl = toFileUrl(fullPath);
     await newRem.setText(buildLinkRichText(fullPath, fileUrl));
   } else {
     await newRem.setText(makePlainRichText(fullPath));
@@ -262,19 +258,3 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   return copied;
 }
 
-export function buildPathStringFromSegments(segments: string[], absolute = true) {
-  if (segments.length === 0) {
-    return '';
-  }
-
-  const [first, ...rest] = segments;
-
-  if (WINDOWS_DRIVE_SEGMENT_REGEX.test(first)) {
-    const remainder = rest.join('/');
-    return remainder.length > 0 ? `${first}/${remainder}` : `${first}/`;
-  }
-
-  const joined = segments.join('/');
-  const prefix = absolute ? '/' : '';
-  return `${prefix}${joined}`;
-}

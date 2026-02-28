@@ -2,13 +2,13 @@ import { renderWidget, usePlugin } from '@remnote/plugin-sdk';
 import { useState, useCallback } from 'react';
 import {
   DEVICE_NAME_STORAGE_KEY,
-  parsePathSegments,
+  normalizePath,
+  getPathPrefixes,
   ensureFilepathsRoot,
   ensureDeviceRem,
-  ensureSegmentRem,
+  ensurePathRem,
   getFilepathsRootName,
   copyToClipboard,
-  buildPathStringFromSegments,
 } from './utils';
 import '../style.css';
 
@@ -29,9 +29,9 @@ function PathCreator() {
     setIsCreating(true);
 
     try {
-      const { segments, absolute } = parsePathSegments(trimmedPath);
+      const { path: normalizedPath } = normalizePath(trimmedPath);
 
-      if (segments.length === 0) {
+      if (normalizedPath.length === 0) {
         await plugin.app.toast('Provide a valid file path');
         setIsCreating(false);
         return;
@@ -61,44 +61,22 @@ function PathCreator() {
 
       const createLinks = await plugin.settings.getSetting<boolean>(`device-links-${deviceName}`) !== false;
 
-      // Create flat Rems for each accumulated path
-      const accumulatedSegments: string[] = [];
-
-      for (const rawSegment of segments) {
-        const segment = rawSegment.trim();
-        if (segment.length === 0) {
-          continue;
-        }
-
-        accumulatedSegments.push(segment);
-
-        // Build the full path for this level
-        const fullPath = buildPathStringFromSegments(accumulatedSegments, absolute);
-
-        // Create or reuse the Rem
-        const segmentRem = await ensureSegmentRem(
-          deviceRem,
-          fullPath,
-          absolute,
-          createLinks,
-          plugin
-        );
-
-        if (!segmentRem) {
+      const prefixes = getPathPrefixes(normalizedPath);
+      for (const prefix of prefixes) {
+        const pathRem = await ensurePathRem(deviceRem, prefix, createLinks, plugin);
+        if (!pathRem) {
           await plugin.app.toast('Unable to create a rem for part of the path');
           setIsCreating(false);
           return;
         }
       }
 
-      // Copy the constructed filepath to clipboard
-      const finalPath = buildPathStringFromSegments(segments, absolute);
-      const copied = await copyToClipboard(finalPath);
+      const copied = await copyToClipboard(normalizedPath);
 
       await plugin.widget.closePopup();
       await plugin.app.toast(
         copied
-          ? `Created path and copied to clipboard: ${finalPath}`
+          ? `Created path and copied to clipboard: ${normalizedPath}`
           : `Created path hierarchy under "${rootName} > ${deviceName}"`
       );
     } catch (error) {

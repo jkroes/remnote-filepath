@@ -109,9 +109,9 @@ Filepaths (root)
 - `src/widgets/child_paths.tsx` — DocumentBelowTitle widget displaying navigable child paths
 - `src/widgets/utils.ts` — Shared utilities:
   - Constants: `DEVICE_NAME_STORAGE_KEY`, `FILEPATH_ROOT_SETTING_ID`, etc.
-  - Path parsing: `parsePathSegments`, `buildFileUrlFromSegments`, `buildPathStringFromSegments`
+  - Path helpers: `normalizePath`, `toFileUrl`, `getPathPrefixes`
   - Path identification: `isPathRem` (structural check), `getPathFromRem`, `getLastSegment`, `isDirectChild`
-  - Rem management: `ensureSegmentRem`, `findExistingPathRem`, `ensureFilepathsRoot`, `ensureDeviceRem`
+  - Rem management: `ensurePathRem`, `findExistingPathRem`, `ensureFilepathsRoot`, `ensureDeviceRem`
 
 ## SDK Gotchas
 
