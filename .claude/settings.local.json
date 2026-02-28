@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_serena_serena__initial_instructions",
+      "mcp__plugin_serena_serena__get_current_config",
+      "mcp__plugin_serena_serena__onboarding",
+      "mcp__plugin_serena_serena__list_dir",
+      "mcp__serena__initial_instructions",
+      "mcp__Ref__ref_read_url",
+      "mcp__plugin_github_github__get_file_contents",
+      "mcp__Ref__ref_search_documentation",
+      "WebFetch(domain:plugins.remnote.com)",
+      "mcp__plugin_github_github__search_code",
+      "WebSearch",
+      "mcp__plugin_github_github__search_repositories",
+      "mcp__plugin_github_github__get_commit",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}

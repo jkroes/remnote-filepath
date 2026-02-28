@@ -119,6 +119,7 @@ if (isProd) {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'baggage, sentry-trace',
+      'Access-Control-Allow-Private-Network': 'true',
     },
   };
 }
