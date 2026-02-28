@@ -22,6 +22,8 @@ You are a RemNote plugin developer working on this project.
 - `npm run dev` — Start webpack dev server on port 8080 (load in RemNote as localhost plugin)
 - `npm run build` — Validate manifest, build production bundle, create PluginZip.zip
 - `npm run check-types` — Run TypeScript compiler (no emit)
+- `npm test` — Run Vitest tests (single run)
+- `npm run test:watch` — Run Vitest in watch mode
 - `npm install` — Requires `dangerouslyDisableSandbox: true` (needs registry.npmjs.org)
 
 ## Development Guidelines
@@ -80,7 +82,7 @@ Filepaths (root)
    - Path creation logic reads the setting and passes `createLinks` flag to `ensurePathRem`
    - If false, creates plain text instead of `file://` link
 
-3. **"Create Path" command with input popup**
+3. **"FP: Add Path" command with input popup**
    - Command `path-to-hierarchy` detects current path Rem context, checks device name
    - If no device name set, auto-opens device picker first, then chains to path creator
    - User enters/pastes path in popup
@@ -89,7 +91,7 @@ Filepaths (root)
    - Normalizes input, generates all path prefixes, creates a Rem for each
    - After creating hierarchy, copies the filepath to clipboard automatically
 
-4. **"Copy Filepath" command + popup**
+4. **"FP: Copy Referenced Path" command + popup**
    - Command `copy-filepath` opens `filepath_copier` popup
    - Scans document for Rem references to path Rems (via structural check)
    - Reads full path directly from referenced Rem's text
@@ -114,11 +116,39 @@ Filepaths (root)
    - Scoring: +1 per match, +2 consecutive bonus, +3 path-separator bonus
    - Used in filepath_copier and global path search
 
-8. **Global path search**
+8. **"FP: Search All Paths" global path search**
    - Command `search-paths` opens `path_search` popup
    - Scans all devices, fuzzy-filtered list with device labels
    - Enter navigates to path Rem, Cmd/Ctrl+Enter copies path
    - Widget `src/widgets/path_search.tsx`
+
+9. **"FP: Bulk Add Paths" bulk path creation**
+   - Command `bulk-create-paths` opens `bulk_path_creator` popup
+   - Textarea accepts multiple paths (one per line)
+   - Deduplicates prefixes across all paths, skips invalid (relative) paths
+   - Shows summary toast: "Created N paths, skipped M invalid"
+   - Auto-prompts device picker if no device set (chains via `returnTo`)
+   - Widget `src/widgets/bulk_path_creator.tsx`
+
+10. **"FP: Delete This Path" command**
+    - Command `delete-path` validates current document is a path Rem
+    - Finds all descendants via path index, sorts deepest-first
+    - Opens `delete_confirm` popup with path, descendant count, and Rem IDs
+    - Cascade deletes all descendants then the target path
+    - Navigates to parent path Rem (or device Rem) after deletion
+    - Widget `src/widgets/delete_confirm.tsx`
+
+11. **Unit tests**
+    - Vitest test runner with minimal config (`vitest.config.ts`)
+    - Tests for pure functions in `utils.ts`: `normalizePath`, `getPathPrefixes`, `toFileUrl`, `fuzzyMatch`, `isDirectChild`, `getLastSegment`
+    - Test file: `src/widgets/utils.test.ts`
+    - Run with `npm test` or `npm run test:watch`
+
+## Testing
+
+- **Vitest** configured in `vitest.config.ts`, tests in `src/widgets/utils.test.ts`
+- Pure functions in `utils.ts` are directly testable — `import type { RNPlugin }` is stripped by esbuild at compile time
+- SDK-dependent functions (`ensurePathRem`, `isPathRem`, `buildPathIndex`, etc.) require mocking and are not currently tested
 
 ## File Overview
 
@@ -128,6 +158,8 @@ Filepaths (root)
 - `src/widgets/filepath_copier.tsx` — Popup for copying existing filepaths
 - `src/widgets/child_paths.tsx` — DocumentBelowTitle widget displaying navigable child paths
 - `src/widgets/path_search.tsx` — Popup for searching all paths across devices with fuzzy matching
+- `src/widgets/bulk_path_creator.tsx` — Popup for bulk creating multiple path hierarchies
+- `src/widgets/delete_confirm.tsx` — Confirmation popup for path deletion with cascade
 - `src/widgets/utils.ts` — Shared utilities:
   - Constants: `DEVICE_NAME_STORAGE_KEY`, `FILEPATH_ROOT_SETTING_ID`, etc.
   - Path helpers: `normalizePath`, `toFileUrl`, `getPathPrefixes`
@@ -143,10 +175,14 @@ Filepaths (root)
 - **RemNote overrides Tailwind color classes in dark mode** — Host CSS redefines classes like `.dark .dark\:text-white` using CSS variables (`--rn-colors-white-val`) that invert semantically (white becomes black). Avoid `dark:text-white`, `dark:text-gray-*`, etc. on form elements. Use explicit CSS rules (e.g., `.dark input { color: #fff; }`) instead.
 - **`plugin.settings.getSetting` throws on unregistered settings** — If a setting ID was never registered (e.g., device deleted, plugin reactivated), `getSetting` throws `TypeError: Cannot read properties of undefined (reading 'defaultValue')`. Always wrap in try/catch with a sensible default.
 - **`registerBooleanSetting` outside `onActivate` is unreliable** — Best-effort registration in popup widgets may silently fail. Code that reads dynamically-registered settings must handle the unregistered case.
+- **`rem.remove()`** — deletes a Rem and its children. Used in `delete_confirm.tsx` for cascade path deletion.
+- **`isDirectChild('/', '/Users')` returns false** — the `parent + '/'` check produces `'//'` which never matches. Root path Rems cannot have direct children via this function.
 
 ## Patterns
 
 - **Popup chaining**: Pass `{ returnTo: 'widget_name', ...forwardedData }` in `contextData` when opening a popup that should chain to another. The receiving popup calls `openPopup(returnTo, forwardedData)` instead of `closePopup()`. Used by device_picker → path_creator flow.
+
+- **Command naming**: All commands use "FP:" prefix. Context-dependent commands include hints in the name (e.g., "Delete **This** Path" = must be on a path Rem, "Copy **Referenced** Path" = operates on references in a document).
 
 ## Sandbox
 

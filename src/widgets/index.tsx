@@ -68,7 +68,7 @@ async function onActivate(plugin: ReactRNPlugin) {
 
   await plugin.app.registerCommand({
     id: 'path-to-hierarchy',
-    name: 'Filepath: Create Path',
+    name: 'FP: Add Path',
     action: async () => {
       // Pre-fill: check if current document is a path Rem
       let prefillPath: string | undefined;
@@ -99,7 +99,7 @@ async function onActivate(plugin: ReactRNPlugin) {
 
   await plugin.app.registerCommand({
     id: 'set-device-name',
-    name: 'Filepath: Set Device Name',
+    name: 'FP: Set Device',
     action: async () => {
       const rootName = await getFilepathsRootName(plugin);
       await plugin.widget.openPopup('device_picker', { rootName });
@@ -108,7 +108,7 @@ async function onActivate(plugin: ReactRNPlugin) {
 
   await plugin.app.registerCommand({
     id: 'copy-filepath',
-    name: 'Filepath: Copy Path',
+    name: 'FP: Copy Referenced Path',
     action: async () => {
       const paneId = await plugin.window.getFocusedPaneId();
       const docRemId = await plugin.window.getOpenPaneRemId(paneId);
@@ -128,7 +128,7 @@ async function onActivate(plugin: ReactRNPlugin) {
 
   await plugin.app.registerCommand({
     id: 'search-paths',
-    name: 'Filepath: Search Paths',
+    name: 'FP: Search All Paths',
     action: async () => {
       await plugin.widget.openPopup('path_search');
     },
@@ -136,7 +136,7 @@ async function onActivate(plugin: ReactRNPlugin) {
 
   await plugin.app.registerCommand({
     id: 'bulk-create-paths',
-    name: 'Filepath: Bulk Create Paths',
+    name: 'FP: Bulk Add Paths',
     action: async () => {
       const deviceName = await plugin.storage.getLocal<string>(DEVICE_NAME_STORAGE_KEY);
       if (!deviceName) {
@@ -153,7 +153,7 @@ async function onActivate(plugin: ReactRNPlugin) {
 
   await plugin.app.registerCommand({
     id: 'delete-path',
-    name: 'Filepath: Delete Path',
+    name: 'FP: Delete This Path',
     action: async () => {
       const paneId = await plugin.window.getFocusedPaneId();
       const docRemId = await plugin.window.getOpenPaneRemId(paneId);
