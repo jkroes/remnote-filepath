@@ -6,7 +6,9 @@ A RemNote plugin for managing filesystem paths as navigable knowledge base entri
 
 ### Create Path Hierarchies
 
-Run the **Filepath: Create Path** command to open an input popup. Paste or type any absolute file path (e.g., `/Users/john/Documents/report.pdf`) and the plugin creates a Rem for each path segment. Segments are stored flat under a per-device parent Rem and identified by their structural position (direct children of a device Rem under the Filepaths root).
+Run the **Filepath: Create Path** command to open an input popup. Paste or type any file path (e.g., `/Users/john/Documents/report.pdf`) and the plugin creates a Rem for the path and each of its parent directories. Path Rems are stored flat under a per-device parent Rem and identified by their structural position (direct children of a device Rem under the Filepaths root).
+
+Supported path formats: Unix absolute (`/Users/...`), Windows drives (`C:\Users\...`), UNC paths (`\\server\share\...`), `file://` URLs, and relative paths.
 
 After creation, the full path is automatically copied to your clipboard.
 
@@ -24,7 +26,7 @@ Run **Filepath: Set Device Name** to name the current machine. Each device gets 
 
 ### Per-Device Link Toggle
 
-A boolean setting per device controls whether path segments are created with `file://` links (clickable in some environments) or as plain text.
+A boolean setting per device controls whether path Rems are created with `file://` links (clickable in some environments) or as plain text.
 
 ## Commands
 

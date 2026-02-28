@@ -38,7 +38,7 @@ async function onActivate(plugin: ReactRNPlugin) {
   if (existingRoot) {
     const deviceChildren = await existingRoot.getChildrenRem();
     for (const child of deviceChildren ?? []) {
-      const name = (await plugin.richText.toString(child.text)).trim();
+      const name = (await plugin.richText.toString(child.text || [])).trim();
       if (name.length > 0) {
         await plugin.settings.registerBooleanSetting({
           id: `device-links-${name}`,

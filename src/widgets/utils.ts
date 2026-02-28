@@ -74,7 +74,7 @@ export async function ensureDeviceRem(
 ) {
   const children = await root.getChildrenRem();
   for (const child of children ?? []) {
-    const text = (await plugin.richText.toString(child.text)).trim();
+    const text = (await plugin.richText.toString(child.text || [])).trim();
     if (text === deviceName) {
       return child;
     }
@@ -105,6 +105,10 @@ export function normalizePath(rawInput: string): { path: string; absolute: boole
   // Normalize backslashes
   path = path.replace(/\\/g, '/');
 
+  // Strip trailing slashes (but not a bare "/" or "C:/")
+  path = path.replace(/\/+$/, '');
+  if (path.length === 0) path = '/';
+
   // Check for /C:/ pattern (from file:///C:/...)
   if (/^\/[a-zA-Z]:/.test(path)) {
     path = path.slice(1);
@@ -113,6 +117,11 @@ export function normalizePath(rawInput: string): { path: string; absolute: boole
 
   // Windows drive letter
   if (/^[a-zA-Z]:/.test(path)) {
+    return { path, absolute: true };
+  }
+
+  // UNC path (//server/share)
+  if (path.startsWith('//')) {
     return { path, absolute: true };
   }
 
@@ -134,6 +143,10 @@ export function toFileUrl(path: string): string {
   if (/^[a-zA-Z]:/.test(path)) {
     return `file:///${path}`;
   }
+  // UNC path: //server/share → file://server/share
+  if (path.startsWith('//')) {
+    return `file:${path}`;
+  }
   // Unix (path already has leading /) or relative
   return `file://${path}`;
 }
@@ -143,8 +156,16 @@ export function getPathPrefixes(path: string): string[] {
 
   const prefixes: string[] = [];
 
+  // For UNC paths (//server/share/...), skip past //server to start scanning
+  // The first meaningful prefix is //server/share
+  let start = 1;
+  if (path.startsWith('//')) {
+    const serverSlash = path.indexOf('/', 2);
+    start = serverSlash >= 0 ? serverSlash + 1 : path.length;
+  }
+
   // Find each / and take the substring up to that point
-  for (let i = 1; i < path.length; i++) {
+  for (let i = start; i < path.length; i++) {
     if (path[i] === '/') {
       prefixes.push(path.slice(0, i));
     }
@@ -168,7 +189,7 @@ export async function isPathRem(rem: any, plugin: RNPlugin): Promise<boolean> {
 }
 
 export function getPathFromRem(rem: any): string {
-  return extractTextFromRichText(rem.text);
+  return extractTextFromRichText(rem.text).trim();
 }
 
 export function getLastSegment(path: string): string {

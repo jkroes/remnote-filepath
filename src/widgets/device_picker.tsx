@@ -1,13 +1,8 @@
-import {
-  declareIndexPlugin,
-  ReactRNPlugin,
-  WidgetLocation,
-} from '@remnote/plugin-sdk';
+import { WidgetLocation } from '@remnote/plugin-sdk';
 import { usePlugin, renderWidget, useRunAsync } from '@remnote/plugin-sdk';
 import { useState } from 'react';
+import { DEVICE_NAME_STORAGE_KEY } from './utils';
 import '../style.css';
-
-const DEVICE_NAME_STORAGE_KEY = 'device-name';
 
 function DevicePicker() {
   const plugin = usePlugin();
@@ -31,7 +26,7 @@ function DevicePicker() {
 
     const names: string[] = [];
     for (const child of children) {
-      const text = (await plugin.richText.toString(child.text)).trim();
+      const text = (await plugin.richText.toString(child.text || [])).trim();
       if (text.length > 0) {
         names.push(text);
       }
@@ -61,29 +56,29 @@ function DevicePicker() {
     await plugin.widget.closePopup();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    selectDevice(newName);
+    await selectDevice(newName);
   };
 
   return (
-    <div className="p-4">
-      <h2 className="text-lg font-semibold mb-3">Select Device Name</h2>
-      <p className="text-sm text-gray-500 mb-3">
+    <div className="p-4 bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100">
+      <h2 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-50">Select Device Name</h2>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
         Choose an existing device or enter a new name. This identifies which
         machine created the file paths.
       </p>
 
       {existingDevices && existingDevices.length > 0 && (
         <div className="mb-4">
-          <p className="text-sm font-medium mb-2">Existing devices:</p>
+          <p className="text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">Existing devices:</p>
           <div className="flex flex-col gap-1">
             {existingDevices.map((name) => (
               <button
                 key={name}
                 onClick={() => selectDevice(name)}
                 disabled={submitting}
-                className="text-left px-3 py-2 rounded border border-gray-200 hover:bg-blue-50 hover:border-blue-300 transition-colors disabled:opacity-50"
+                className="text-left px-3 py-2 rounded border border-gray-200 dark:border-zinc-700 hover:bg-blue-50 dark:hover:bg-zinc-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors disabled:opacity-50 text-gray-900 dark:text-gray-100"
               >
                 {name}
               </button>
@@ -93,7 +88,7 @@ function DevicePicker() {
       )}
 
       <form onSubmit={handleSubmit}>
-        <label className="text-sm font-medium mb-1 block">
+        <label className="text-sm font-medium mb-1 block text-gray-900 dark:text-gray-100">
           New device name:
         </label>
         <div className="flex gap-2">
@@ -101,14 +96,20 @@ function DevicePicker() {
             type="text"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                plugin.widget.closePopup();
+              }
+            }}
             placeholder="e.g. MacBook, WorkPC"
             autoFocus
-            className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-400"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-zinc-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-800 text-gray-900 placeholder-gray-500"
           />
           <button
             type="submit"
             disabled={newName.trim().length === 0 || submitting}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Set
           </button>

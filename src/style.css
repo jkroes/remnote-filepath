@@ -43,3 +43,19 @@ body,
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/*
+ * Dark-mode input text color.
+ * RemNote's host CSS overrides Tailwind's `dark:text-white` class via
+ * --rn-colors-white-val (which resolves to black in dark mode).
+ * We avoid the conflict by NOT using dark:text-white on inputs
+ * and instead setting the color here.
+ */
+.dark input,
+.dark textarea {
+  color: #fff;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #9ca3af;
+}

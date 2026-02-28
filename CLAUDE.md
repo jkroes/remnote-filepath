@@ -76,13 +76,13 @@ Filepaths (root)
 2. **Per-device link-creation toggle**
    - `index.tsx` onActivate scans device Rems, registers `device-links-{name}` boolean setting per device
    - `device_picker.tsx` best-effort registers the setting when new device is selected
-   - Path creation logic reads the setting and passes `createLinks` flag to `ensureSegmentRem`
+   - Path creation logic reads the setting and passes `createLinks` flag to `ensurePathRem`
    - If false, creates plain text instead of `file://` link
 
 3. **"Create Path" command with input popup**
    - Command `path-to-hierarchy` opens `path_creator` popup for path input
    - User enters/pastes path in popup
-   - Creates flat path Rems for each accumulated segment
+   - Normalizes input, generates all path prefixes, creates a Rem for each
    - After creating hierarchy, copies the filepath to clipboard automatically
 
 4. **"Copy Filepath" command + popup**
@@ -118,6 +118,7 @@ Filepaths (root)
 - **Document-level widget locations (`DocumentBelowTitle`, etc.) are single reused instances** — not one per document. Must listen to `AppEvents.URLChange` to detect navigation and re-fetch widget context.
 - **`getWidgetContext` is not tracked by `useTracker`** — fetch it via `useState` + `useEffect` with a URLChange listener, then pass the ID as a dep to `useTracker` for data fetching.
 - **`powerupFilter` only works with per-Rem locations** (`UnderRemEditor`, `RightSideOfEditor`) — document-level widgets must filter themselves manually.
+- **RemNote overrides Tailwind color classes in dark mode** — Host CSS redefines classes like `.dark .dark\:text-white` using CSS variables (`--rn-colors-white-val`) that invert semantically (white becomes black). Avoid `dark:text-white`, `dark:text-gray-*`, etc. on form elements. Use explicit CSS rules (e.g., `.dark input { color: #fff; }`) instead.
 
 ## Sandbox
 
