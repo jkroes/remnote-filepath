@@ -13,7 +13,8 @@ const CopyPlugin = require('copy-webpack-plugin');
 const isProd = process.env.NODE_ENV === 'production';
 const isDevelopment = !isProd;
 
-const fastRefresh = isDevelopment ? new ReactRefreshWebpackPlugin() : null;
+// Disable React Fast Refresh to avoid setCustomCSS error in RemNote
+const fastRefresh = null; // isDevelopment ? new ReactRefreshWebpackPlugin() : null;
 
 const SANDBOX_SUFFIX = '-sandbox';
 
@@ -113,7 +114,8 @@ if (isProd) {
   config.devServer = {
     port: 8080,
     open: true,
-    hot: true,
+    hot: false, // Disable hot reload to avoid setCustomCSS error
+    client: false, // Disable webpack dev client to prevent HMR errors in RemNote iframe
     compress: true,
     watchFiles: ['src/*'],
     headers: {

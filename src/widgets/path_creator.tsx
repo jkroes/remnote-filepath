@@ -1,260 +1,21 @@
 import { renderWidget, usePlugin } from '@remnote/plugin-sdk';
 import { useState, useCallback } from 'react';
-import { buildPathStringFromSegments } from './utils';
+import {
+  DEVICE_NAME_STORAGE_KEY,
+  parsePathSegments,
+  ensureFilepathsRoot,
+  ensureDeviceRem,
+  ensureSegmentRem,
+  getFilepathsRootName,
+  copyToClipboard,
+  buildPathStringFromSegments,
+} from './utils';
 import '../style.css';
-
-const DEFAULT_PATH_TAG_NAME = 'path';
-const DEFAULT_FILEPATH_ROOT_NAME = 'Filepaths';
-const PATH_TAG_SETTING_ID = 'path-tag-name';
-const FILEPATH_ROOT_SETTING_ID = 'filepath-root-name';
-const DEVICE_NAME_STORAGE_KEY = 'device-name';
-const WINDOWS_DRIVE_PREFIX_REGEX = /^\/?([a-zA-Z]:)(?:\/|$)/;
-const FILE_PROTOCOL_REGEX = /^file:\/\//i;
-const BACKSLASH_REGEX = /\\/g;
-const WINDOWS_DRIVE_SEGMENT_REGEX = /^[a-zA-Z]:$/;
-
-const makePlainRichText = (text: string) => [
-  {
-    i: 'm' as const,
-    text,
-  },
-];
-
-const buildLinkRichText = (text: string, url: string) => [
-  {
-    i: 'm' as const,
-    text,
-    iUrl: url,
-  },
-];
-
-const buildFileUrlFromSegments = (segments: string[], absolute = true) => {
-  if (segments.length === 0) {
-    return undefined;
-  }
-
-  const [first, ...rest] = segments;
-
-  if (WINDOWS_DRIVE_SEGMENT_REGEX.test(first)) {
-    const remainder = rest.join('/');
-    const drivePath = remainder.length > 0 ? `${first}/${remainder}` : `${first}/`;
-    return `file:///${drivePath}`;
-  }
-
-  const joined = segments.join('/');
-  if (joined.length === 0) {
-    return absolute ? 'file:///' : 'file://';
-  }
-
-  const prefix = absolute ? '/' : '';
-  return `file://${prefix}${joined}`;
-};
-
-const parsePathSegments = (rawPath: string) => {
-  let path = rawPath.trim();
-
-  if (path.length === 0) {
-    return { segments: [], absolute: false };
-  }
-
-  if (FILE_PROTOCOL_REGEX.test(path)) {
-    path = path.replace(FILE_PROTOCOL_REGEX, '');
-  }
-
-  path = path.replace(BACKSLASH_REGEX, '/');
-
-  let absolute = false;
-  let drive: string | undefined;
-
-  const driveMatch = path.match(WINDOWS_DRIVE_PREFIX_REGEX);
-  if (driveMatch) {
-    drive = driveMatch[1];
-    absolute = true;
-    path = path.slice(driveMatch[0].length);
-  } else if (path.startsWith('/')) {
-    absolute = true;
-    path = path.replace(/^\/+/, '');
-  }
-
-  const parts = path
-    .split('/')
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0);
-
-  const segments = drive ? [drive, ...parts] : parts;
-
-  return { segments, absolute };
-};
 
 function PathCreator() {
   const plugin = usePlugin();
   const [path, setPath] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-
-  const getConfiguredString = async (settingId: string, fallback: string) => {
-    const value = await plugin.settings.getSetting<string>(settingId);
-    return typeof value === 'string' && value.trim().length > 0
-      ? value.trim()
-      : fallback;
-  };
-
-  const getPathTagName = () =>
-    getConfiguredString(PATH_TAG_SETTING_ID, DEFAULT_PATH_TAG_NAME);
-
-  const getFilepathsRootName = () =>
-    getConfiguredString(FILEPATH_ROOT_SETTING_ID, DEFAULT_FILEPATH_ROOT_NAME);
-
-  const ensurePathTag = async (tagName: string) => {
-    const nameRichText = makePlainRichText(tagName);
-    const existing = await plugin.rem.findByName(nameRichText, null);
-
-    if (existing) {
-      return existing;
-    }
-
-    const newTag = await plugin.rem.createRem();
-    if (!newTag) {
-      return undefined;
-    }
-
-    await newTag.setText(nameRichText);
-    return newTag;
-  };
-
-  const ensureFilepathsRoot = async (rootName: string) => {
-    const nameRichText = makePlainRichText(rootName);
-    const existing = await plugin.rem.findByName(nameRichText, null);
-
-    if (existing) {
-      return existing;
-    }
-
-    const newRoot = await plugin.rem.createRem();
-    if (!newRoot) {
-      return undefined;
-    }
-
-    await newRoot.setText(nameRichText);
-    try {
-      await newRoot.setParent(null);
-    } catch (_err) {
-      // Scope may prevent moving to top level; leave wherever it was created.
-    }
-    return newRoot;
-  };
-
-  const ensureDeviceRem = async (root: any, deviceName: string) => {
-    const children = await root.getChildrenRem();
-    for (const child of children ?? []) {
-      const text = (await plugin.richText.toString(child.text)).trim();
-      if (text === deviceName) {
-        return child;
-      }
-    }
-
-    const newRem = await plugin.rem.createRem();
-    if (!newRem) {
-      return undefined;
-    }
-
-    try {
-      await newRem.setParent(root);
-    } catch (_err) {
-      // leave in default location if move fails
-    }
-    await newRem.setText(makePlainRichText(deviceName));
-    return newRem;
-  };
-
-  const hasPathTag = async (rem: any, pathTagId: string) => {
-    const tagRems = await rem.getTagRems();
-    return tagRems?.some((tag: any) => tag._id === pathTagId) ?? false;
-  };
-
-  const ensureRemTaggedAndLinked = async (
-    rem: any,
-    displayText: string,
-    segments: string[],
-    pathTag: any,
-    absolute = true,
-    createLinks = true
-  ) => {
-    const trimmed = displayText.trim();
-    if (trimmed.length === 0 || segments.length === 0) {
-      return;
-    }
-
-    if (!(await hasPathTag(rem, pathTag._id))) {
-      await rem.addTag(pathTag);
-    }
-
-    if (createLinks) {
-      const fileUrl =
-        buildFileUrlFromSegments(segments, absolute) ?? `file://${trimmed}`;
-      await rem.setText(buildLinkRichText(trimmed, fileUrl));
-    } else {
-      await rem.setText(makePlainRichText(trimmed));
-    }
-  };
-
-  const findChildPathRem = async (
-    parent: any,
-    segment: string,
-    pathTagId: string
-  ) => {
-    if (!parent || !parent.getChildrenRem) {
-      return undefined;
-    }
-
-    const children = await parent.getChildrenRem();
-    let fallback: any | undefined;
-    for (const child of children ?? []) {
-      const childText = (await plugin.richText.toString(child.text)).trim();
-      if (childText !== segment) {
-        continue;
-      }
-      if (await hasPathTag(child, pathTagId)) {
-        return child;
-      }
-      fallback = fallback ?? child;
-    }
-
-    return fallback;
-  };
-
-  const createChildPathRem = async (parent: any, segment: string) => {
-    const newRem = await plugin.rem.createRem();
-    if (!newRem) {
-      return undefined;
-    }
-
-    try {
-      await newRem.setParent(parent);
-    } catch (_err) {
-      // If we can't move it, leave it in the default location.
-    }
-    await newRem.setText(makePlainRichText(segment));
-    return newRem;
-  };
-
-  const copyToClipboard = async (text: string) => {
-    let copied = false;
-    try {
-      await navigator.clipboard.writeText(text);
-      copied = true;
-    } catch (_) {
-      // Clipboard API blocked by iframe permissions policy; use execCommand fallback
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      copied = document.execCommand('copy');
-      document.body.removeChild(textarea);
-    }
-    return copied;
-  };
 
   const handleCreate = useCallback(async () => {
     if (isCreating) return;
@@ -276,16 +37,8 @@ function PathCreator() {
         return;
       }
 
-      const pathTagName = await getPathTagName();
-      const pathTag = await ensurePathTag(pathTagName);
-      if (!pathTag) {
-        await plugin.app.toast(`Unable to create or fetch the "${pathTagName}" tag`);
-        setIsCreating(false);
-        return;
-      }
-
-      const rootName = await getFilepathsRootName();
-      const root = await ensureFilepathsRoot(rootName);
+      const rootName = await getFilepathsRootName(plugin);
+      const root = await ensureFilepathsRoot(plugin, rootName);
       if (!root) {
         await plugin.app.toast(`Unable to create or fetch the "${rootName}" root`);
         setIsCreating(false);
@@ -299,7 +52,7 @@ function PathCreator() {
         return;
       }
 
-      const deviceRem = await ensureDeviceRem(root, deviceName);
+      const deviceRem = await ensureDeviceRem(plugin, root, deviceName);
       if (!deviceRem) {
         await plugin.app.toast('Unable to create or fetch the device Rem');
         setIsCreating(false);
@@ -308,7 +61,7 @@ function PathCreator() {
 
       const createLinks = await plugin.settings.getSetting<boolean>(`device-links-${deviceName}`) !== false;
 
-      let currentParent: any = deviceRem;
+      // Create flat Rems for each accumulated path
       const accumulatedSegments: string[] = [];
 
       for (const rawSegment of segments) {
@@ -319,26 +72,23 @@ function PathCreator() {
 
         accumulatedSegments.push(segment);
 
-        let child = await findChildPathRem(currentParent, segment, pathTag._id);
+        // Build the full path for this level
+        const fullPath = buildPathStringFromSegments(accumulatedSegments, absolute);
 
-        if (!child) {
-          child = await createChildPathRem(currentParent, segment);
-          if (!child) {
-            await plugin.app.toast('Unable to create a rem for part of the path');
-            setIsCreating(false);
-            return;
-          }
-        }
-
-        await ensureRemTaggedAndLinked(
-          child,
-          segment,
-          [...accumulatedSegments],
-          pathTag,
+        // Create or reuse the Rem
+        const segmentRem = await ensureSegmentRem(
+          deviceRem,
+          fullPath,
           absolute,
-          createLinks
+          createLinks,
+          plugin
         );
-        currentParent = child;
+
+        if (!segmentRem) {
+          await plugin.app.toast('Unable to create a rem for part of the path');
+          setIsCreating(false);
+          return;
+        }
       }
 
       // Copy the constructed filepath to clipboard

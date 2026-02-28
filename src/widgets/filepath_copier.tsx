@@ -1,7 +1,7 @@
 import { WidgetLocation } from '@remnote/plugin-sdk';
 import { usePlugin, renderWidget, useRunAsync } from '@remnote/plugin-sdk';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { hasPathTag, collectTaggedSegments, buildPathStringFromSegments } from './utils';
+import { isPathSegment, getPathFromRem, copyToClipboard } from './utils';
 import '../style.css';
 
 interface FilepathEntry {
@@ -19,8 +19,7 @@ function FilepathCopier() {
     const ctx = await plugin.widget.getWidgetContext<WidgetLocation.Popup>();
     const docRemId = ctx?.contextData?.docRemId as string | undefined;
     const focusedRemId = ctx?.contextData?.focusedRemId as string | null;
-    const pathTagId = ctx?.contextData?.pathTagId as string | undefined;
-    if (!docRemId || !pathTagId) return { entries: [] as FilepathEntry[], focusedRemId: null };
+    if (!docRemId) return { entries: [] as FilepathEntry[], focusedRemId: null };
 
     const docRem = await plugin.rem.findOne(docRemId);
     if (!docRem) return { entries: [] as FilepathEntry[], focusedRemId };
@@ -39,12 +38,9 @@ function FilepathCopier() {
         try {
           const referencedRem = await plugin.rem.findOne(element._id);
           if (!referencedRem) continue;
-          if (!(await hasPathTag(referencedRem, pathTagId))) continue;
+          if (!(await isPathSegment(referencedRem))) continue;
 
-          const segments = await collectTaggedSegments(referencedRem, pathTagId, plugin);
-          if (segments.length === 0) continue;
-
-          const path = buildPathStringFromSegments(segments, true);
+          const path = getPathFromRem(referencedRem);
           if (path && !seen.has(path)) {
             seen.add(path);
             entries.push({ path, remId: rem._id });
@@ -85,21 +81,7 @@ function FilepathCopier() {
 
   const copyAndClose = useCallback(
     async (path: string) => {
-      let copied = false;
-      try {
-        await navigator.clipboard.writeText(path);
-        copied = true;
-      } catch (_) {
-        // Clipboard API blocked by iframe permissions policy; use execCommand fallback
-        const textarea = document.createElement('textarea');
-        textarea.value = path;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        copied = document.execCommand('copy');
-        document.body.removeChild(textarea);
-      }
+      const copied = await copyToClipboard(path);
       await plugin.app.toast(copied ? 'Copied to clipboard' : 'Failed to copy');
       await plugin.widget.closePopup();
     },
