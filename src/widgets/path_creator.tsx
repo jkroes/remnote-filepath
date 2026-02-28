@@ -9,6 +9,7 @@ import {
   ensurePathRem,
   getFilepathsRootName,
   copyToClipboard,
+  buildPathIndex,
 } from './utils';
 import '../style.css';
 
@@ -83,9 +84,11 @@ function PathCreator() {
         // Setting may not be registered (e.g., new device created after plugin activation)
       }
 
+      const index = await buildPathIndex(deviceRem);
+
       const prefixes = getPathPrefixes(normalizedPath);
       for (const prefix of prefixes) {
-        const pathRem = await ensurePathRem(deviceRem, prefix, createLinks, plugin);
+        const pathRem = await ensurePathRem(deviceRem, prefix, createLinks, plugin, index);
         if (!pathRem) {
           await plugin.app.toast('Unable to create a rem for part of the path');
           setIsCreating(false);

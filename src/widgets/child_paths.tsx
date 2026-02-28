@@ -1,6 +1,6 @@
 import React from 'react';
 import { renderWidget, usePlugin, useTracker, AppEvents, WidgetLocation } from '@remnote/plugin-sdk';
-import { isPathRem, getPathFromRem, getLastSegment, isDirectChild, findExistingPathRem, getPathPrefixes, copyToClipboard } from './utils';
+import { isPathRem, getPathFromRem, getLastSegment, isDirectChild, buildPathIndex, getPathPrefixes, copyToClipboard } from './utils';
 import '../style.css';
 
 const { useState, useEffect } = React;
@@ -38,25 +38,24 @@ function ChildPaths() {
     const deviceRem = await rem.getParentRem();
     if (!deviceRem) return null;
 
+    // Build index once for all lookups
+    const index = await buildPathIndex(deviceRem);
+
     // Compute breadcrumbs from ancestor prefixes
     const prefixes = getPathPrefixes(myPath);
-    // Remove last entry (current path) — those are ancestors only
     const ancestorPrefixes = prefixes.slice(0, -1);
     const breadcrumbs: Array<{ id: string | null; label: string }> = [];
     for (const prefix of ancestorPrefixes) {
-      const ancestorRem = await findExistingPathRem(deviceRem, prefix);
+      const ancestorRem = index.get(prefix);
       breadcrumbs.push({
         id: ancestorRem?._id ?? null,
         label: getLastSegment(prefix) || prefix,
       });
     }
 
-    // Compute children
-    const siblings = await deviceRem.getChildrenRem();
+    // Compute children from index
     const result: Array<{ id: string; path: string; label: string }> = [];
-
-    for (const sibling of siblings ?? []) {
-      const sibPath = getPathFromRem(sibling);
+    for (const [sibPath, sibling] of index) {
       if (isDirectChild(myPath, sibPath)) {
         result.push({ id: sibling._id, path: sibPath, label: getLastSegment(sibPath) });
       }

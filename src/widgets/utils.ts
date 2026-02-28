@@ -210,10 +210,47 @@ export function isDirectChild(parentPath: string, childPath: string): boolean {
   return remainder.length > 0 && !remainder.includes('/');
 }
 
+export async function buildPathIndex(deviceRem: any): Promise<Map<string, any>> {
+  const index = new Map<string, any>();
+  const children = await deviceRem.getChildrenRem();
+  for (const child of children ?? []) {
+    const path = getPathFromRem(child);
+    if (path) {
+      index.set(path, child);
+    }
+  }
+  return index;
+}
+
+export function fuzzyMatch(query: string, target: string): { match: boolean; score: number } {
+  const q = query.toLowerCase();
+  const t = target.toLowerCase();
+
+  let qi = 0;
+  let score = 0;
+  let lastMatchIndex = -1;
+
+  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+    if (t[ti] === q[qi]) {
+      score += 1;
+      if (lastMatchIndex === ti - 1) score += 2;
+      if (ti === 0 || t[ti - 1] === '/') score += 3;
+      lastMatchIndex = ti;
+      qi++;
+    }
+  }
+
+  return { match: qi === q.length, score };
+}
+
 export async function findExistingPathRem(
   deviceRem: any,
   fullPath: string,
+  index?: Map<string, any>,
 ) {
+  if (index) {
+    return index.get(fullPath) ?? undefined;
+  }
   const children = await deviceRem.getChildrenRem();
   for (const child of children ?? []) {
     const childPath = getPathFromRem(child);
@@ -228,10 +265,11 @@ export async function ensurePathRem(
   deviceRem: any,
   fullPath: string,
   createLinks: boolean,
-  plugin: RNPlugin
+  plugin: RNPlugin,
+  index?: Map<string, any>,
 ) {
   // Check if it already exists
-  const existing = await findExistingPathRem(deviceRem, fullPath);
+  const existing = await findExistingPathRem(deviceRem, fullPath, index);
   if (existing) {
     return existing;
   }
@@ -254,6 +292,11 @@ export async function ensurePathRem(
     await newRem.setText(buildLinkRichText(fullPath, fileUrl));
   } else {
     await newRem.setText(makePlainRichText(fullPath));
+  }
+
+  // Update index so subsequent lookups in the same operation find this Rem
+  if (index) {
+    index.set(fullPath, newRem);
   }
 
   return newRem;
