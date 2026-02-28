@@ -1,51 +1,68 @@
 # RemNote Filepath
 
-A RemNote plugin for managing filesystem paths as navigable knowledge base entries. Create, browse, and reference file paths directly within your RemNote knowledge base.
+A RemNote plugin for managing filesystem paths as navigable knowledge base entries.
 
 ## Features
 
-### Create Path Hierarchies
+### Add Paths
 
-Run the **Filepath: Create Path** command to open an input popup. Paste or type any file path (e.g., `/Users/john/Documents/report.pdf`) and the plugin creates a Rem for the path and each of its parent directories. Path Rems are stored flat under a per-device parent Rem and identified by their structural position (direct children of a device Rem under the Filepaths root).
+Run **FP: Add Path** to create a Rem for a file path and each of its ancestor directories. When invoked from an existing path Rem, the input pre-fills with that path. The full path is copied to your clipboard after creation.
 
-Supported path formats: Unix absolute (`/Users/...`), Windows drives (`C:\Users\...`), UNC paths (`\\server\share\...`), `file://` URLs, and relative paths.
+Supports Unix absolute paths, Windows drive paths, UNC paths, and `file://` URLs.
 
-After creation, the full path is automatically copied to your clipboard.
+### Bulk Add Paths
 
-### Navigate Child Paths
+Run **FP: Bulk Add Paths** to create multiple paths at once. Paste one path per line — the plugin deduplicates shared ancestors and reports results in a summary toast.
 
-When viewing a path Rem, a widget below the page title displays its direct child paths as clickable buttons (showing just the final segment, e.g., "Documents" instead of the full path). This lets you browse your filesystem hierarchy without leaving RemNote.
+### Browse Paths
 
-### Copy Filepath
+When viewing a path Rem, a widget below the title displays:
 
-Run **Filepath: Copy Path** while viewing any document. The plugin scans the current document for references to path Rems, extracts the full path, and copies it to your clipboard.
+- **Breadcrumb trail** — clickable ancestors for upward navigation
+- **Copy button** — copies the path to your clipboard
+- **Child paths** — clickable child entries showing the final path segment
+
+### Search All Paths
+
+Run **FP: Search All Paths** for fuzzy search across all devices. Press Enter to navigate, or Cmd/Ctrl+Enter to copy.
+
+### Copy Referenced Path
+
+Run **FP: Copy Referenced Path** to scan the current document for path Rem references and copy the resolved path to your clipboard.
+
+### Delete a Path
+
+Run **FP: Delete This Path** to remove the current path Rem and all its descendants, with a confirmation prompt. Navigates to the parent path afterward.
 
 ### Multi-Device Support
 
-Run **Filepath: Set Device Name** to name the current machine. Each device gets its own container Rem, so paths from different machines stay organized and don't collide.
+Run **FP: Set Device** to name the current machine. Each device has its own namespace, keeping paths from different machines separate. The device picker opens automatically if no device is set.
 
 ### Per-Device Link Toggle
 
-A boolean setting per device controls whether path Rems are created with `file://` links (clickable in some environments) or as plain text.
+A per-device setting controls whether paths are created with clickable `file://` links or as plain text.
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `Filepath: Create Path` | Open popup to create a new path hierarchy |
-| `Filepath: Copy Path` | Copy a filepath referenced in the current document |
-| `Filepath: Set Device Name` | Set or change the device name for this machine |
+| `FP: Add Path` | Create a path and its ancestors |
+| `FP: Bulk Add Paths` | Create multiple paths at once |
+| `FP: Search All Paths` | Fuzzy search across all devices |
+| `FP: Copy Referenced Path` | Copy a referenced path from the current document |
+| `FP: Delete This Path` | Delete the current path and its descendants |
+| `FP: Set Device` | Set or change the device name |
 
 ## Settings
 
 | Setting | Default | Description |
 |---|---|---|
-| Filepaths Root Name | `Filepaths` | Name of the top-level Rem that stores all path hierarchies |
-| Enable links for "{device}" | `true` | Per-device toggle for `file://` link creation |
+| Filepaths Root Name | `Filepaths` | Name of the top-level container Rem |
+| Enable links for "{device}" | `true` | Per-device `file://` link toggle |
 
 ## How It Works
 
-All path Rems are stored flat as direct children of a device Rem (not nested). Each Rem's text contains the full absolute path. Child relationships are determined dynamically by parsing path strings.
+The plugin organizes paths under a root Rem, grouped by device. Each path Rem stores the full absolute path in its text. The browsing widget resolves parent and child relationships by parsing these path strings.
 
 ```
 Filepaths
@@ -53,15 +70,15 @@ Filepaths
     ├── /Users
     ├── /Users/john
     ├── /Users/john/Documents
-    │   └── [your notes here]
+    │   └── [your notes]
     └── /Users/john/Documents/report.pdf
 ```
 
-Your own notes appear as normal children of any path Rem, keeping personal annotations separate from the generated hierarchy.
+Your notes appear as children of any path Rem, separate from the generated paths.
 
 ## Permissions
 
-The manifest requests the `All` scope with `ReadCreateModifyDelete` access so the plugin can create, update, and delete Rems anywhere in your knowledge base (needed to maintain a shared Filepaths root and reuse existing hierarchy nodes).
+Requires `All` scope with `ReadCreateModifyDelete` access to manage path Rems across your knowledge base.
 
 ## Development
 
@@ -70,7 +87,7 @@ npm install
 npm run dev
 ```
 
-Load the plugin in RemNote via **Settings > Plugins > Build > Develop from local server**.
+Load the plugin via **Settings > Plugins > Build > Develop from local server**.
 
 ### Build
 
@@ -78,7 +95,14 @@ Load the plugin in RemNote via **Settings > Plugins > Build > Develop from local
 npm run build
 ```
 
-Produces a `PluginZip.zip` ready for distribution.
+Produces `PluginZip.zip` for distribution.
+
+### Test
+
+```bash
+npm test
+npm run test:watch
+```
 
 ## Author
 
