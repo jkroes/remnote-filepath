@@ -38,6 +38,10 @@ async function onActivate(plugin: ReactRNPlugin) {
     dimensions: { height: 'auto', width: '500px' },
   });
 
+  await plugin.app.registerWidget('bulk_path_creator', WidgetLocation.Popup, {
+    dimensions: { height: 'auto', width: '500px' },
+  });
+
   // Register per-device link-creation toggles for existing devices
   const rootName = await getFilepathsRootName(plugin);
   const existingRoot = await plugin.rem.findByName(makePlainRichText(rootName), null);
@@ -121,6 +125,23 @@ async function onActivate(plugin: ReactRNPlugin) {
     name: 'Filepath: Search Paths',
     action: async () => {
       await plugin.widget.openPopup('path_search');
+    },
+  });
+
+  await plugin.app.registerCommand({
+    id: 'bulk-create-paths',
+    name: 'Filepath: Bulk Create Paths',
+    action: async () => {
+      const deviceName = await plugin.storage.getLocal<string>(DEVICE_NAME_STORAGE_KEY);
+      if (!deviceName) {
+        const rootName = await getFilepathsRootName(plugin);
+        await plugin.widget.openPopup('device_picker', {
+          rootName,
+          returnTo: 'bulk_path_creator',
+        });
+        return;
+      }
+      await plugin.widget.openPopup('bulk_path_creator');
     },
   });
 }
